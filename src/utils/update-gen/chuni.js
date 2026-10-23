@@ -36,6 +36,26 @@ import logoNew from '@/assets/update-gen/chuni/logo-new.webp'
 import logoNewPlus from '@/assets/update-gen/chuni/logo-new-plus.webp'
 import logoSun from '@/assets/update-gen/chuni/logo-sun.webp'
 import logoSunPlus from '@/assets/update-gen/chuni/logo-sun-plus.webp'
+import topBarUrl from '@/assets/update-gen/chuni/top-bar.webp'
+import bottomBarUrl from '@/assets/update-gen/chuni/bottom-bar.png'
+import cardBgUrl from '@/assets/update-gen/chuni/card-bg.webp'
+import cardBgUltimaUrl from '@/assets/update-gen/chuni/card-bg-ultima.png'
+import cardBgLegacyUrl from '@/assets/update-gen/chuni/card-bg-legacy.png'
+import cardBgUltimaLegacyUrl from '@/assets/update-gen/chuni/card-bg-ultima-legacy.png'
+import bandLegacyUrl from '@/assets/update-gen/chuni/band-legacy.jpg'
+import logoSegaUrl from '@/assets/update-gen/chuni/logo-sega.svg'
+
+/** 各渲染族共用的素材（图 URL）。按需注入共享图片池，键名与渲染器读取的 imgs.* 完全一致 */
+export const CHUNI_SHARED_ASSETS = {
+  topBar: topBarUrl,
+  bottomBar: bottomBarUrl,
+  cardBg: cardBgUrl,
+  cardBgUltima: cardBgUltimaUrl,
+  cardBgLegacy: cardBgLegacyUrl,
+  cardBgUltimaLegacy: cardBgUltimaLegacyUrl,
+  bandLegacy: bandLegacyUrl,
+  logoSega: logoSegaUrl
+}
 
 /** 版本配置：style=legacy|modern；logoRect 无则不画 logo；bgSpecial='mate' 表示背景只盖中间、另叠顶/底条 */
 export const CHUNI_VERSIONS = {
@@ -74,6 +94,57 @@ export const CHUNI_VERSIONS = {
   xverse: { style: 'modern', label: 'CHUNITHM X-Verse', bg: bgXverse, logo: null },
   xversex: { style: 'modern', label: 'CHUNITHM X-Verse-X', bg: bgXversex, logo: null },
   mate: { style: 'modern', label: 'CHUNITHM MATE', bg: bgMate, logo: logoMate, logoRect: [1599, 33, 301, 131], bgSpecial: 'mate' }
+}
+
+/** 渲染族（CHUNI_VERSIONS[*].style）→ 共享素材清单 */
+const CHUNI_FAMILY_SHARED = {
+  amazon: [['logoSega', ['logoSega']]],
+  crystal: [['logoSega', ['logoSega']]],
+  paradise: [['logoSega', ['logoSega']]],
+  legacy: [
+    ['bandLegacy', ['bandLegacy']],
+    ['bottomBar', ['bottomBar']],
+    ['cardBgLegacy', ['cardBgLegacy']],
+    ['cardBgUltimaLegacy', ['cardBgUltimaLegacy']],
+    ['logoSega', ['logoSega']]
+  ],
+  modern: [
+    ['topBar', ['topBar']],
+    ['bottomBar', ['bottomBar']],
+    ['cardBg', ['cardBg']],
+    ['cardBgUltima', ['cardBgUltima']],
+    ['logoSega', ['logoSega']]
+  ]
+}
+
+/**
+ * 列出某个主题真正需要的素材：该版本背景 +（有则加）版本 logo / 标题纹理 + 渲染族共享素材。
+ * 供加载器按主题懒加载写入共享图片池 imgs；已加载的素材由调用方永久缓存，切主题只补这份清单。
+ *
+ * ⚠️ 维护约定：新增版本 / 新渲染族时必须在 CHUNI_FAMILY_SHARED 里补上该族读取的全部素材，
+ *    否则对应元素会静默缺失（渲染器的 blit 会跳过 undefined，不会报错）。
+ *
+ * @param {string} version CHUNI_VERSIONS 的键；不识别时回退到 mate
+ * @returns {{ primary: string, entries: Array<{ url: string, path: Array<string|number> }> }}
+ *   primary = 该版本背景 URL（renderChuni 用它判断能否绘制）；path 依次作为 imgs 的键/下标写入，
+ *   例如 ['bgs','mate']、['logos','crystal']、['logoSega']，中间层由加载器自动创建。
+ */
+export function chuniThemeAssets(version) {
+  const key = typeof version === 'string' && version ? version : 'mate'
+  const ver = Object.prototype.hasOwnProperty.call(CHUNI_VERSIONS, key) ? CHUNI_VERSIONS[key] : CHUNI_VERSIONS.mate
+  const entries = []
+  const add = (url, path) => {
+    if (typeof url === 'string' && url) entries.push({ url, path })
+  }
+
+  // 背景必须写在 state.version 对应的键上：renderChuni 用 state.version 取 imgs.bgs[key]。
+  add(ver.bg, ['bgs', key])
+  if (ver.logo) add(ver.logo, ['logos', key])
+  if (ver.texture) add(ver.texture, ['chuniTitleTextures', key])
+  const shared = CHUNI_FAMILY_SHARED[ver.style] || CHUNI_FAMILY_SHARED.modern
+  shared.forEach(([asset, path]) => add(CHUNI_SHARED_ASSETS[asset], path))
+
+  return { primary: ver.bg, entries }
 }
 
 /** 安全贴图：素材还没加载完（首帧会先出占位版式）时跳过，避免 drawImage(undefined) 直接抛错 */
@@ -525,7 +596,6 @@ function renderAmazon(ctx, state, imgs, ver) {
   })
   ctx.restore()
 }
-
 
 /* ===================== CRYSTAL / CRYSTAL PLUS 旧框 ===================== */
 

@@ -9,7 +9,14 @@
         <span>回 Toys</span>
       </a>
       <span class="ug-brand">音游更新图生成器</span>
-      <a class="ug-gh" href="https://github.com/Swan416ya" target="_blank" rel="noopener noreferrer" aria-label="GitHub">
+      <a
+        class="ug-gh"
+        href="https://github.com/Swan416ya/otogame-update-announcement-generator"
+        target="_blank"
+        rel="noopener noreferrer"
+        title="前往生成器仓库点 Star"
+        aria-label="前往生成器 GitHub 仓库"
+      >
         <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
           <path fill="currentColor" d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.58.11.79-.25.79-.55 0-.27-.01-1.17-.02-2.12-3.2.7-3.88-1.36-3.88-1.36-.52-1.33-1.28-1.68-1.28-1.68-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.19 1.76 1.19 1.03 1.75 2.69 1.25 3.34.95.1-.74.4-1.25.72-1.53-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.28 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 2.89-.39c.98 0 1.97.13 2.89.39 2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.81 1.19 1.83 1.19 3.09 0 4.42-2.7 5.39-5.26 5.68.41.35.77 1.05.77 2.12 0 1.53-.01 2.76-.01 3.14 0 .3.2.67.8.55A11.51 11.51 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5z" />
         </svg>
@@ -23,7 +30,8 @@
         <section class="ug-group">
           <div class="ug-tabs">
             <button type="button" class="ug-tab" :class="{ on: game === 'chuni' }" @click="game = 'chuni'">中二节奏</button>
-            <button type="button" class="ug-tab" :class="{ on: game === 'mai' }" @click="game = 'mai'">舞萌DX</button>
+            <!-- 悬停就先把舞萌渲染器的代码 chunk 取回来（只取代码，不碰素材图） -->
+            <button type="button" class="ug-tab" :class="{ on: game === 'mai' }" @pointerenter="loadMaiModule" @pointerdown="loadMaiModule" @click="game = 'mai'">舞萌DX</button>
           </div>
         </section>
 
@@ -31,7 +39,7 @@
         <section class="ug-group">
           <label class="ug-label" for="ug-version">版本</label>
           <select id="ug-version" v-model="version">
-            <option v-for="(v, k) in versionList" :key="k" :value="k">{{ v.label }}</option>
+            <option v-for="(v, k) in versionList" :key="k" :value="k">{{ shortVersionLabel(v.label) }}</option>
           </select>
         </section>
 
@@ -150,8 +158,8 @@
 
         <!-- 导出 -->
         <section class="ug-group ug-actions">
-          <button type="button" class="ug-btn ug-btn--primary" @click="downloadPng">下载 PNG</button>
-          <button type="button" class="ug-btn" @click="copyPng">复制图片</button>
+          <button type="button" class="ug-btn ug-btn--primary" :disabled="maiModuleLoading" @click="downloadPng">下载 PNG</button>
+          <button type="button" class="ug-btn" :disabled="maiModuleLoading" @click="copyPng">复制图片</button>
         </section>
 
         <p class="ug-status" :class="statusType">{{ status }}</p>
@@ -161,6 +169,11 @@
       <main class="ug-preview">
         <div class="ug-frame" :style="{ aspectRatio: `${canvasSize.width} / ${canvasSize.height}` }">
           <canvas ref="canvasRef" :width="canvasSize.width" :height="canvasSize.height"></canvas>
+          <!-- 当前主题的素材还没到位时盖一层提示；已有上一帧就保留画面，不闪灰 -->
+          <div v-if="themeLoading || maiModuleLoading" class="ug-loading">
+            <span class="ug-loading__spinner"></span>
+            <span>{{ loadingText }}</span>
+          </div>
         </div>
         <p class="ug-tip">预览为 {{ canvasSize.width }}×{{ canvasSize.height }} 等比缩放，导出按 2× 高清渲染。曲绘只在本机浏览器读取转换，不会上传到任何服务器。</p>
       </main>
@@ -169,43 +182,39 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
-import { CHUNI_VERSIONS, renderChuni } from '@/utils/update-gen/chuni'
-import { MAI_VERSIONS, MAI_PALETTES, MAI_UNIV_CARD_URLS, MAI_BAND_URLS, MAI_ASSET_URLS, MAI_CN_LOGO_URL, MAI_CN_DX_LOGO_URL, MAI_CN_2021_LOGO_URL, MAI_CN_2022_LOGO_URL, MAI_CN_2023_LOGO_URL, MAI_CN_2024_LOGO_URL, MAI_CN_2025_LOGO_URL, MAI_CN_2027_LOGO_URL, MAI_EARLY_URLS, MAI_EARLY_BG_URLS, MAI_SPLASH_CARD_URLS, MAI_MODERN_BG_URLS, MAI_MODERN_HEADER_URLS, MAI_MODERN_DECO_URLS, MAI_MAGICAL_URLS, MAI_CIRCLEPLUS_URLS, MAI_CIRCLE_URLS, MAI_MAGICAL_CARD_URLS, renderMai } from '@/utils/update-gen/mai'
-import '@fontsource/noto-sans-sc/700.css'
-import '@fontsource/noto-sans-sc/900.css'
+import { ref, reactive, computed, watch, onMounted, onBeforeUnmount, nextTick, shallowRef } from 'vue'
+import { CHUNI_VERSIONS, renderChuni, chuniThemeAssets } from '@/utils/update-gen/chuni'
+import { ensureFonts, getAssetStore } from '@/utils/update-gen/themeAssets'
+// Noto Sans SC / M PLUS 已由 main.js 全局引入；这里只补本页用到而全局没有的 Noto Sans JP 600/900
 import '@fontsource/noto-sans-jp/600.css'
 import '@fontsource/noto-sans-jp/900.css'
 import '@fontsource/noto-sans-jp/400.css'
-import '@fontsource/m-plus-rounded-1c/800.css'
-import '@fontsource/m-plus-rounded-1c/900.css'
-import newRodinUrl from '@/assets/update-gen/fonts/NewRodinPro-B.woff2'
-import miSansUrl from '@/assets/update-gen/fonts/MiSans-Regular.woff2'
-import udKakugoEUrl from '@/assets/update-gen/fonts/UDKakugo-E.otf'
-import udKakugoHUrl from '@/assets/update-gen/fonts/UDKakugo-H.otf'
-import newRodinEbUrl from '@/assets/update-gen/fonts/NewRodinPro-EB.otf'
-import udShinGoScUrl from '@/assets/update-gen/fonts/UDShinGoSC-B.woff2'
 
-/* 舞萌卡片模板/横幅/SEGA/徽章 URL 均由 mai.js 导出（官方图抠取） */
-const maiLogoModules = import.meta.glob('@/assets/update-gen/mai/logo-*.png', { eager: true, import: 'default' })
-const maiLogoUrls = {}
-for (const [path, url] of Object.entries(maiLogoModules)) {
-  const m = path.match(/logo-(\w+)\.png$/)
-  if (m) maiLogoUrls[m[1]] = url
+/* ---------- 主题素材库 ----------
+   store 是页面级单例：打开页面只加载当前主题需要的图；切主题才补新主题缺的，
+   已经加载过的图不清、永久留在内存里，切回来立即出图。 */
+const store = getAssetStore()
+const imgs = store.imgs
+
+/* ---------- 舞萌渲染器按需加载 ----------
+   中二是默认视图，不点「舞萌DX」就不下载舞萌渲染器（以及它带的素材 URL）。 */
+const maiModule = shallowRef(null)
+const maiModuleLoading = ref(false)
+let maiModulePromise = null
+function loadMaiModule() {
+  if (!maiModulePromise) {
+    maiModuleLoading.value = true
+    maiModulePromise = import('@/utils/update-gen/mai')
+      .then((mod) => {
+        maiModule.value = mod
+        return mod
+      })
+      .finally(() => {
+        maiModuleLoading.value = false
+      })
+  }
+  return maiModulePromise
 }
-// BUDDiES 两版使用已清理白底/外发光、保留官方白色贴边的新素材。
-maiLogoUrls.buddies = MAI_VERSIONS.buddies.logo
-maiLogoUrls.buddiesplus = MAI_VERSIONS.buddiesplus.logo
-import topBarUrl from '@/assets/update-gen/chuni/top-bar.webp'
-import bottomBarUrl from '@/assets/update-gen/chuni/bottom-bar.png'
-import cardBgUrl from '@/assets/update-gen/chuni/card-bg.webp'
-import cardBgUltimaUrl from '@/assets/update-gen/chuni/card-bg-ultima.png'
-import cardBgLegacyUrl from '@/assets/update-gen/chuni/card-bg-legacy.png'
-import cardBgUltimaLegacyUrl from '@/assets/update-gen/chuni/card-bg-ultima-legacy.png'
-import bandLegacyUrl from '@/assets/update-gen/chuni/band-legacy.jpg'
-import logoSegaUrl from '@/assets/update-gen/chuni/logo-sega.svg'
-
-const CHUNI_ASSET_URLS = { topBar: topBarUrl, bottomBar: bottomBarUrl, cardBg: cardBgUrl, cardBgUltima: cardBgUltimaUrl, cardBgLegacy: cardBgLegacyUrl, cardBgUltimaLegacy: cardBgUltimaLegacyUrl, bandLegacy: bandLegacyUrl, logoSega: logoSegaUrl }
 
 /* ---------- 状态 ---------- */
 const game = ref('chuni')
@@ -223,32 +232,93 @@ const status = ref('')
 const statusType = ref('')
 const canvasRef = ref(null)
 const fileInputs = ref([])
+const themeLoading = ref(false)
+const themeProgress = ref({ done: 0, total: 0 })
 const canvasSize = computed(() => game.value === 'chuni' && (version.value === 'amazon' || version.value === 'amazon-plus')
   ? { width: 1440, height: 1080 }
   : { width: 1920, height: 1080 })
+/** 预览区角上的加载提示文案（舞萌渲染器是独立 chunk，加载它时素材清单还是空的） */
+const loadingText = computed(() => {
+  if (maiModuleLoading.value) return '正在加载舞萌渲染器…'
+  const { done, total } = themeProgress.value
+  return total ? `正在加载素材 ${done}/${total}…` : '正在加载素材…'
+})
 let songSeq = 0
+
+function shortVersionLabel(label) {
+  return String(label || '')
+    .replace(/^CHUNITHM\s+/i, '')
+    .replace(/^maimai\s*でらっくす\s*/i, '')
+}
 
 const isDev = import.meta.env.DEV || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname))
 /* 线上放行的舞萌主题（DX 初代/PLUS、PRiSM/PRiSM PLUS 与 PSD 校准过的 MAGiCAL 三版） */
 const MAI_LAUNCH_KEYS = ['deradx', 'splash', 'splashplus', 'universe', 'festival', 'buddies', 'buddiesplus', 'prism', 'prismplus', 'circle', 'circleplus', 'magical']
+const CHUNI_VERSION_KEYS = Object.keys(CHUNI_VERSIONS)
+
+/** 当前可选的舞萌版本（渲染器按需加载，没加载完之前为空） */
+function maiVersionKeys() {
+  const mod = maiModule.value
+  if (!mod) return []
+  const keys = isDev ? Object.keys(mod.MAI_VERSIONS).filter((k) => k !== 'festivalplus' && k !== 'universeplus') : MAI_LAUNCH_KEYS
+  return keys.filter((k) => mod.MAI_VERSIONS[k])
+}
+
 const versionList = computed(() => {
   if (game.value === 'chuni') return CHUNI_VERSIONS
+  const mod = maiModule.value
+  if (!mod) return {}
   const out = {}
-  const keys = isDev ? Object.keys(MAI_VERSIONS).filter((k) => k !== 'festivalplus' && k !== 'universeplus') : MAI_LAUNCH_KEYS
-  for (const k of keys) if (MAI_VERSIONS[k]) out[k] = MAI_VERSIONS[k]
+  for (const k of maiVersionKeys()) out[k] = mod.MAI_VERSIONS[k]
   return out
 })
-const maiPalette = computed(() => MAI_PALETTES[MAI_VERSIONS[version.value]?.family || 'festival'])
+/** 影响舞萌素材清单的 UI 开关（切开关时会补对应的 logo） */
+const maiUi = computed(() => ({
+  useCnLogo: useCnLogo.value,
+  dxLogoVariant: dxLogoVariant.value,
+  festivalLogoVariant: festivalLogoVariant.value,
+  universeLogoVariant: universeLogoVariant.value,
+  splashAltBg: splashAltBg.value
+}))
+/** 当前主题需要哪些素材（由渲染器自己声明，见 chuni.js / mai.js） */
+const themeAssets = computed(() => {
+  if (game.value === 'chuni') return chuniThemeAssets(version.value)
+  const mod = maiModule.value
+  return mod ? mod.maiThemeAssets(version.value, maiUi.value) : null
+})
+const maiPalette = computed(() => {
+  const mod = maiModule.value
+  if (!mod) return []
+  return mod.MAI_PALETTES[mod.MAI_VERSIONS[version.value]?.family || 'festival'] || []
+})
 const OLD_CHUNI_VERSIONS = new Set(['amazon', 'amazon-plus', 'crystal', 'crystal-plus', 'paradise', 'paradise-lost'])
 const songLimit = computed(() => game.value === 'chuni' && OLD_CHUNI_VERSIONS.has(version.value) ? 9 : 10)
 const renderSongs = computed(() => songs.slice(0, songLimit.value))
 
+/**
+ * 当前主题要用到的字体集合。
+ * - 中二：标题/卡片用 NewRodin + UDShinGo，版权行用 MiSans；旧版（crystal/paradise）标题的兜底才需要 FOT-NewRodin Pro。
+ * - 舞萌：卡片与标题用 FOT-NewRodin Pro + UDShinGo；UDKakugo（11.5MB）只在 DX 初代做缺字兜底。
+ */
+function fontsForTheme() {
+  if (game.value === 'chuni') {
+    const base = ['newRodinB', 'udShinGo', 'miSans']
+    return OLD_CHUNI_VERSIONS.has(version.value) ? [...base, 'newRodinEB'] : base
+  }
+  return version.value === 'deradx' ? ['newRodinEB', 'udShinGo', 'kakugo'] : ['newRodinEB', 'udShinGo']
+}
+
 /* 切游戏时把版本切到该游戏的最新版本（列表末项，与中二 mate 默认一致） */
-watch(game, () => {
-  const keys = Object.keys(versionList.value)
-  version.value = keys[keys.length - 1]
-  if (game.value === 'mai') ensureMaiAssets()
-  scheduleRender()
+watch(game, async (g) => {
+  if (g === 'mai') {
+    await loadMaiModule()
+    if (game.value !== 'mai') return
+    const keys = maiVersionKeys()
+    version.value = keys[keys.length - 1] || 'magical'
+  } else {
+    version.value = CHUNI_VERSION_KEYS[CHUNI_VERSION_KEYS.length - 1]
+  }
+  ensureCurrentTheme()
 })
 
 function addSong() {
@@ -341,155 +411,41 @@ function autoGrow(e) {
   el.style.height = el.scrollHeight + 'px'
 }
 
-/* ---------- 字体与图片预加载 ---------- */
+/* ---------- 主题素材加载 ---------- */
 let ready = false
-const imgs = { bgs: {}, logos: {}, chuniTitleTextures: {}, logosMai: {}, bgsMai: {}, maiFestCards: {}, maiUnivCards: {}, maiBands: {} }
+/** 上一次真正画出来的 'game:version'：切到还没加载的主题时保留上一帧，不闪黑/闪灰 */
+let paintedTheme = ''
 
-/* 1×1 透明占位：个别图挂了也让 drawImage 有东西可画，不炸整个渲染 */
-const fallbackImg = (() => {
-  const c = document.createElement('canvas')
-  c.width = c.height = 1
-  return c
-})
-
-function loadImage(src, bucket, key) {
-  return new Promise((res) => {
-    const done = (im) => {
-      if (bucket) bucket[key] = im
-      // 大批素材会分批抵达；不要等最慢的一张才刷新当前主题。
-      // scheduleRender 内部带防抖，这里逐张触发不会造成连续重绘。
-      if (ready) scheduleRender()
-      res(im)
-    }
-    const img = new Image()
-    img.onload = () => done(img)
-    // 失败静默重试一次；再失败给透明占位——绝不让 Promise 挂起或 reject
-    img.onerror = () => {
-      const retry = new Image()
-      retry.onload = () => done(retry)
-      retry.onerror = () => done(fallbackImg)
-      retry.src = src + (src.includes('?') ? '&' : '?') + 'retry=1'
-    }
-    img.src = src
+/**
+ * 确保当前主题的素材已就位。
+ * 先只等主背景（最快出图），再把该主题其余素材与字体并行补齐；
+ * 素材库按 URL 全局去重，所以重复调用只是补缺，已加载的立即返回。
+ */
+let themeSeq = 0
+async function ensureCurrentTheme() {
+  const seq = ++themeSeq
+  if (game.value === 'mai' && !maiModule.value) return
+  const info = themeAssets.value
+  if (!info) return
+  syncThemeLoadState(info)
+  await store.ensure(info.entries.filter((e) => e.url === info.primary))
+  if (seq !== themeSeq) return
+  syncThemeLoadState(info)
+  scheduleRender()
+  const fontsJob = ensureFonts(fontsForTheme())
+  await store.ensure(info.entries)
+  if (seq !== themeSeq) return
+  syncThemeLoadState(info)
+  scheduleRender()
+  fontsJob.then(() => {
+    if (seq === themeSeq) scheduleRender()
   })
 }
 
-/* 素材按游戏分两批：中二（默认视图）先加载；舞萌素材等切过去再加载，
-   避免首屏为了几十 MB 的舞萌图一直黑屏 */
-function loadChuniAssets() {
-  const jobs = []
-  for (const [k, v] of Object.entries(CHUNI_VERSIONS)) {
-    jobs.push(loadImage(v.bg, imgs.bgs, k))
-    if (v.logo) jobs.push(loadImage(v.logo, imgs.logos, k))
-    if (v.texture) jobs.push(loadImage(v.texture, imgs.chuniTitleTextures, k))
-  }
-  jobs.push(loadImage(CHUNI_ASSET_URLS.topBar, imgs, 'topBar'))
-  jobs.push(loadImage(CHUNI_ASSET_URLS.bottomBar, imgs, 'bottomBar'))
-  jobs.push(loadImage(CHUNI_ASSET_URLS.cardBg, imgs, 'cardBg'))
-  jobs.push(loadImage(CHUNI_ASSET_URLS.cardBgUltima, imgs, 'cardBgUltima'))
-  jobs.push(loadImage(CHUNI_ASSET_URLS.cardBgLegacy, imgs, 'cardBgLegacy'))
-  jobs.push(loadImage(CHUNI_ASSET_URLS.cardBgUltimaLegacy, imgs, 'cardBgUltimaLegacy'))
-  jobs.push(loadImage(CHUNI_ASSET_URLS.bandLegacy, imgs, 'bandLegacy'))
-  jobs.push(loadImage(CHUNI_ASSET_URLS.logoSega, imgs, 'logoSega'))
-  return jobs
-}
-
-function loadMaiAssets() {
-  const jobs = []
-  for (const [key, url] of Object.entries(maiLogoUrls)) {
-    jobs.push(loadImage(url, imgs.logosMai, key))
-  }
-  MAI_UNIV_CARD_URLS.forEach((url, i) => jobs.push(loadImage(url, imgs.maiUnivCards, i)))
-  for (const [key, url] of Object.entries(MAI_BAND_URLS)) {
-    jobs.push(loadImage(url, imgs.maiBands, key))
-  }
-  imgs.maiEarly = {}
-  for (const [key, url] of Object.entries(MAI_EARLY_URLS)) {
-    jobs.push(loadImage(url, imgs.maiEarly, key))
-  }
-  imgs.maiEarlyBgs = {}
-  for (const [key, url] of Object.entries(MAI_EARLY_BG_URLS)) {
-    jobs.push(loadImage(url, imgs.maiEarlyBgs, key))
-  }
-  imgs.maiSplashCards = {}
-  MAI_SPLASH_CARD_URLS.forEach((url, i) => jobs.push(loadImage(url, imgs.maiSplashCards, i)))
-  imgs.maiPsd = { magical: {}, circleplus: {}, circle: {} }
-  // festival～PRiSM PLUS 六版走 PSD 链路：bg / 用户自制 header 各自一库（卡片框徽章与 MAGiCAL 共用）
-  for (const [key, url] of Object.entries(MAI_MODERN_BG_URLS)) {
-    imgs.maiPsd[key] = imgs.maiPsd[key] || {}
-    jobs.push(loadImage(url, imgs.maiPsd[key], 'bg'))
-  }
-  for (const [key, url] of Object.entries(MAI_MODERN_HEADER_URLS)) {
-    imgs.maiPsd[key] = imgs.maiPsd[key] || {}
-    jobs.push(loadImage(url, imgs.maiPsd[key], 'header'))
-  }
-  for (const [key, url] of Object.entries(MAI_MODERN_DECO_URLS)) {
-    imgs.maiPsd[key] = imgs.maiPsd[key] || {}
-    jobs.push(loadImage(url, imgs.maiPsd[key], 'deco'))
-  }
-  for (const [key, url] of Object.entries(MAI_MAGICAL_URLS)) {
-    jobs.push(loadImage(url, imgs.maiPsd.magical, key))
-  }
-  for (const [key, url] of Object.entries(MAI_CIRCLEPLUS_URLS)) {
-    jobs.push(loadImage(url, imgs.maiPsd.circleplus, key))
-  }
-  for (const [key, url] of Object.entries(MAI_CIRCLE_URLS)) {
-    jobs.push(loadImage(url, imgs.maiPsd.circle, key))
-  }
-  imgs.maiMagical = imgs.maiPsd.magical
-  imgs.maiCircleplus = imgs.maiPsd.circleplus
-  imgs.maiCircle = imgs.maiPsd.circle
-  imgs.maiMagicalCards = {}
-  for (const [key, url] of Object.entries(MAI_MAGICAL_CARD_URLS)) {
-    jobs.push(loadImage(url, imgs.maiMagicalCards, key))
-  }
-  jobs.push(loadImage(MAI_ASSET_URLS.sega, imgs, 'maiSega'))
-  jobs.push(loadImage(MAI_ASSET_URLS.badge, imgs, 'maiBadge'))
-  jobs.push(loadImage(MAI_CN_LOGO_URL, imgs, 'maiCnLogo'))
-  jobs.push(loadImage(MAI_CN_DX_LOGO_URL, imgs, 'maiCnDxLogo'))
-  jobs.push(loadImage(MAI_CN_2021_LOGO_URL, imgs, 'maiCn2021Logo'))
-  jobs.push(loadImage(MAI_CN_2022_LOGO_URL, imgs, 'maiCn2022Logo'))
-  jobs.push(loadImage(MAI_CN_2023_LOGO_URL, imgs, 'maiCn2023Logo'))
-  jobs.push(loadImage(MAI_CN_2024_LOGO_URL, imgs, 'maiCn2024Logo'))
-  jobs.push(loadImage(MAI_CN_2025_LOGO_URL, imgs, 'maiCn2025Logo'))
-  jobs.push(loadImage(MAI_CN_2027_LOGO_URL, imgs, 'maiCn2027Logo'))
-  return jobs
-}
-
-let maiAssetsStarted = false
-const assetPromise = { chuni: Promise.resolve(), mai: Promise.resolve() }
-
-function ensureMaiAssets() {
-  if (maiAssetsStarted) return
-  maiAssetsStarted = true
-  assetPromise.mai = Promise.allSettled(loadMaiAssets())
-  assetPromise.mai.then(() => scheduleRender())
-}
-
-async function preload() {
-  const fontJobs = [
-    new FontFace('NewRodin', `url(${newRodinUrl})`, { weight: '400 900' }).load().then((f) => document.fonts.add(f)),
-    new FontFace('MiSans', `url(${miSansUrl})`, { weight: '400' }).load().then((f) => document.fonts.add(f)),
-    new FontFace('FOT-UDKakugo_Large Pr6N', `url(${udKakugoEUrl})`, { weight: '700' }).load().then((f) => document.fonts.add(f)),
-    new FontFace('FOT-UDKakugo_Large Pr6N', `url(${udKakugoHUrl})`, { weight: '900' }).load().then((f) => document.fonts.add(f)),
-    new FontFace('FOT-NewRodin Pro', `url(${newRodinEbUrl})`, { weight: '900' }).load().then((f) => document.fonts.add(f)),
-    new FontFace('FOT-NewRodin Pro', `url(${newRodinUrl})`, { weight: '700' }).load().then((f) => document.fonts.add(f)),
-    new FontFace('UDShinGo SC', `url(${udShinGoScUrl})`, { weight: '900' }).load().then((f) => document.fonts.add(f)),
-    new FontFace('UDShinGo SC', `url(${udShinGoScUrl})`, { weight: '700' }).load().then((f) => document.fonts.add(f))
-  ]
-  assetPromise.chuni = Promise.allSettled(loadChuniAssets())
-
-  // 立刻先画一帧（此时素材/字体可能都没到，先出占位版式），随后字体与素材到位各自补帧。
-  // 之前要等素材全部加载完才画，国内访问时会黑屏十几秒。
-  ready = true
-  render()
-  await Promise.race([
-    Promise.all(fontJobs).catch(() => null),
-    new Promise((r) => setTimeout(r, 1500))
-  ])
-  render()
-  Promise.allSettled(fontJobs).then(() => scheduleRender())
-  assetPromise.chuni.then(() => scheduleRender())
+/** 同步「正在加载主题素材 x/y」提示 */
+function syncThemeLoadState(info) {
+  themeLoading.value = info ? !store.isReady(info.primary) : false
+  themeProgress.value = info ? store.progress(info.entries) : { done: 0, total: 0 }
 }
 
 /* ---------- 渲染调度 ---------- */
@@ -504,13 +460,29 @@ function collectText() {
   return [title.value, credit.value, ...songs.map((s) => `${s.name}\n${s.artist}`)].join('\n')
 }
 
+/** 按当前游戏/版本画到指定画布；预览与导出共用同一段逻辑，保证两边素材一致 */
+function paintTo(ctx) {
+  if (game.value === 'chuni') {
+    renderChuni(ctx, { version: version.value, title: title.value, songs: renderSongs.value, credit: credit.value }, imgs)
+    return true
+  }
+  const mod = maiModule.value
+  if (!mod) return false
+  mod.renderMai(ctx, { version: version.value, title: title.value, songs, credit: credit.value, useCnLogo: useCnLogo.value, showBadge: showBadge.value, dxLogoVariant: dxLogoVariant.value, festivalLogoVariant: festivalLogoVariant.value, universeLogoVariant: universeLogoVariant.value, splashAltBg: splashAltBg.value }, imgs)
+  return true
+}
+
 async function render() {
   if (!ready || !canvasRef.value) return
+  if (game.value === 'mai' && !maiModule.value) return
+  const info = themeAssets.value
+  // 当前主题主背景还没到：首帧让渲染器画「素材加载中」占位；
+  // 已经画过别的主题时保留上一帧，等背景到位再重绘，避免灰屏闪烁。
+  if (info && !store.isReady(info.primary) && paintedTheme) return
   // canvas 不会自动触发 unicode-range 子集字体（Noto Sans SC）的加载，
   // 渲染前必须对实际用到的文字调 document.fonts.load，否则中文回退会错字体
   const text = collectText()
-  // 字体加载限时 1s：大字体（Noto 子集/UDShinGo 6.5MB）慢时先按已就绪的字画一帧，
-  // 否则首屏会一直等着字体而黑屏；字体到位后 scheduleRender 会再补一帧
+  // 字体加载限时 1s：大字体慢时先按已就绪的字画一帧，字体到位后 scheduleRender 会再补一帧
   try {
     await Promise.race([
       Promise.all([
@@ -520,12 +492,14 @@ async function render() {
         document.fonts.load("600 106px 'Noto Sans JP'", text),
         document.fonts.load("400 26px 'Noto Sans JP'", text),
         document.fonts.load("900 92px 'Noto Sans JP'", text),
-        document.fonts.load("900 92px 'M PLUS Rounded 1c'", text),
-        document.fonts.load("500 25px 'M PLUS Rounded 1c'", text),
-        document.fonts.load("900 92px 'FOT-UDKakugo_Large Pr6N'", text),
-        document.fonts.load("700 26px 'FOT-UDKakugo_Large Pr6N'", text),
+        document.fonts.load("900 92px 'NewRodin'", text),
+        document.fonts.load("700 26px 'NewRodin'", text),
         document.fonts.load("900 80px 'FOT-NewRodin Pro'", text),
-        document.fonts.load("900 80px 'UDShinGo SC'", text)
+        document.fonts.load("700 26px 'FOT-NewRodin Pro'", text),
+        document.fonts.load("900 80px 'UDShinGo SC'", text),
+        document.fonts.load("700 26px 'UDShinGo SC'", text),
+        document.fonts.load("400 15px 'MiSans'", text),
+        document.fonts.load("900 80px 'FOT-UDKakugo_Large Pr6N'", text)
       ]),
       new Promise((r) => setTimeout(r, 1000))
     ])
@@ -538,34 +512,39 @@ async function render() {
   if (canvasRef.value.width !== width) canvasRef.value.width = width
   if (canvasRef.value.height !== height) canvasRef.value.height = height
   const ctx = canvasRef.value.getContext('2d', { willReadFrequently: true })
+  // 字体等待最长 1s，期间可能已经切到别的游戏/主题：重绘前再确认一次，
+  // 避免把「素材加载中」占位盖到已经画好的画面上。
+  if (game.value === 'mai' && !maiModule.value) return
+  const latest = themeAssets.value
+  if (latest && !store.isReady(latest.primary) && paintedTheme) return
   try {
-    if (game.value === 'chuni') {
-      renderChuni(ctx, { version: version.value, title: title.value, songs: renderSongs.value, credit: credit.value }, imgs)
-    } else {
-      renderMai(ctx, { version: version.value, title: title.value, songs, credit: credit.value, useCnLogo: useCnLogo.value, showBadge: showBadge.value, dxLogoVariant: dxLogoVariant.value, festivalLogoVariant: festivalLogoVariant.value, universeLogoVariant: universeLogoVariant.value, splashAltBg: splashAltBg.value }, imgs)
-    }
+    paintTo(ctx)
+    paintedTheme = `${game.value}:${version.value}`
   } catch (e) {
     setStatus('渲染失败：' + (e.message || e), 'err')
   }
 }
 
+/* 版本/开关变化：先补该主题素材（切换主题才下载新图）；内容变化只触发重绘 */
+watch([version, useCnLogo, dxLogoVariant, festivalLogoVariant, universeLogoVariant, splashAltBg], () => ensureCurrentTheme())
 watch([version, title, credit, songs, useCnLogo, showBadge, dxLogoVariant, festivalLogoVariant, universeLogoVariant, splashAltBg], scheduleRender, { deep: true })
 
 /* ---------- 导出 ---------- */
 async function exportCanvas() {
   if (!ready) throw new Error('素材还在加载中')
-  // 当前游戏的素材还在路上就等一会儿（上限 10s），保证导出与预览是同一套素材
-  await Promise.race([assetPromise[game.value], new Promise((r) => setTimeout(r, 10000))])
+  if (game.value === 'mai' && !maiModule.value) throw new Error('舞萌渲染器还没加载好')
+  const info = themeAssets.value
+  // 当前主题素材还在路上就等一会儿（上限 10s），保证导出与预览是同一套素材
+  await Promise.race([
+    Promise.all([store.ensure(info ? info.entries : []), ensureFonts(fontsForTheme())]),
+    new Promise((r) => setTimeout(r, 10000))
+  ])
   const off = document.createElement('canvas')
   off.width = canvasSize.value.width * 2
   off.height = canvasSize.value.height * 2
   const ctx = off.getContext('2d', { willReadFrequently: true })
   ctx.scale(2, 2)
-  if (game.value === 'chuni') {
-    renderChuni(ctx, { version: version.value, title: title.value, songs: renderSongs.value, credit: credit.value }, imgs)
-  } else {
-    renderMai(ctx, { version: version.value, title: title.value, songs, credit: credit.value, useCnLogo: useCnLogo.value, showBadge: showBadge.value, dxLogoVariant: dxLogoVariant.value, festivalLogoVariant: festivalLogoVariant.value, universeLogoVariant: universeLogoVariant.value, splashAltBg: splashAltBg.value }, imgs)
-  }
+  paintTo(ctx)
   return off
 }
 
@@ -603,6 +582,7 @@ async function copyPng() {
 }
 
 /* ---------- 初始化 ---------- */
+let unsubscribeAssets = null
 onMounted(async () => {
   addSong()
   addSong()
@@ -610,13 +590,22 @@ onMounted(async () => {
   songs[0].artist = '示例作曲家'
   songs[1].name = '另一首示例'
   songs[1].artist = 'Another Artist'
+  // 任意一张图到位就补一帧（素材库内部按 URL 去重，切主题也不会重复下载）
+  unsubscribeAssets = store.subscribe(() => {
+    syncThemeLoadState(themeAssets.value)
+    scheduleRender()
+  })
   await nextTick()
-  await preload()
+  ready = true
+  // 先出一帧占位版式，然后只加载当前主题的素材与字体，边到边补帧
+  scheduleRender()
+  ensureCurrentTheme()
 })
 
 onBeforeUnmount(() => {
   clearTimeout(statusTimer)
   clearTimeout(renderTimer)
+  if (unsubscribeAssets) unsubscribeAssets()
 })
 </script>
 
@@ -633,7 +622,8 @@ onBeforeUnmount(() => {
 
 /* ---- 顶部导航 ---- */
 .ug-nav {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
   gap: 14px;
   padding: 12px 20px;
@@ -647,17 +637,35 @@ onBeforeUnmount(() => {
   color: rgba(232, 234, 246, 0.65);
   text-decoration: none;
   transition: color 0.2s;
+  justify-self: start;
 }
 .ug-back:hover { color: #fff; }
 .ug-brand {
-  flex: 1;
   text-align: center;
   font-size: 14px;
   font-weight: 700;
   letter-spacing: 0.14em;
 }
-.ug-gh { color: rgba(232, 234, 246, 0.65); display: inline-flex; }
-.ug-gh:hover { color: #fff; }
+.ug-gh {
+  justify-self: end;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 9px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(232, 234, 246, 0.72);
+  font-size: 12px;
+  text-decoration: none;
+  transition: color 0.2s, border-color 0.2s, background 0.2s;
+}
+.ug-gh strong { color: #ffd65a; font-variant-numeric: tabular-nums; }
+.ug-gh:hover {
+  color: #fff;
+  border-color: rgba(255, 214, 90, 0.55);
+  background: rgba(255, 214, 90, 0.08);
+}
 
 /* ---- 布局 ---- */
 .ug-app {
@@ -854,6 +862,7 @@ select:focus, textarea:focus, input:focus { outline: none; border-color: #7b5cff
     radial-gradient(800px 400px at 75% 80%, rgba(74, 217, 255, 0.06), transparent 70%);
 }
 .ug-frame {
+  position: relative;
   width: 100%;
   max-width: 1150px;
   aspect-ratio: 16 / 9;
@@ -863,6 +872,32 @@ select:focus, textarea:focus, input:focus { outline: none; border-color: #7b5cff
   background: #000;
 }
 .ug-frame canvas { width: 100%; height: 100%; display: block; }
+
+/* ---- 主题素材加载提示 ---- */
+.ug-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-size: 13px;
+  color: rgba(232, 234, 246, 0.85);
+  background: rgba(12, 14, 22, 0.38);
+  backdrop-filter: blur(1.5px);
+  pointer-events: none;
+}
+.ug-loading__spinner {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid rgba(232, 234, 246, 0.25);
+  border-top-color: #4ad9ff;
+  animation: ug-spin 0.8s linear infinite;
+}
+@keyframes ug-spin {
+  to { transform: rotate(360deg); }
+}
 .ug-tip { margin-top: 12px; font-size: 12px; color: rgba(232, 234, 246, 0.4); }
 
 /* ---- 窄屏：恢复普通页面滚动（上下堆叠布局） ---- */

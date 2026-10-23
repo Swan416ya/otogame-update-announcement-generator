@@ -536,6 +536,159 @@ export const MAI_VERSIONS = {
   magical:      { label: 'maimaiでらっくす MAGiCAL',       family: 'magical', logo: logoMagical, tint: ['#d19eff', '#9effd1'] }
 }
 
+/* ================= 主题级素材清单（按需加载） =================
+ * 视图切到某个舞萌主题（或改 UI 开关）时只取这一份清单去懒加载：chuni 全套 21MB、mai 全套 69MB，
+ * 一次性预载首屏扛不住。已加载的图片由调用方永久缓存，切主题只补新增项；同一 URL 在多个版本
+ * 重复出现时由加载器按 URL 全局去重。
+ *
+ * entries 的 path 与渲染器实际读取的 imgs 路径一一对应（逐家族 grep 核对过）：
+ *  - deradx（earlyDx → renderMaiEarlyDx）：
+ *      maiEarlyBgs.dx / logosMai.deradx|plus 或 maiCnDxLogo|maiCn2021Logo|maiCn2022Logo /
+ *      maiEarly.cardDxGreen / maiSega
+ *  - splash（ → renderMaiSplash）：maiEarlyBgs.splash(+splashAlt) / logosMai.splash /
+ *      maiSplashCards[0..5] / maiSega
+ *  - splashplus（ → renderMaiSplashPlus）：maiEarlyBgs.splashplus / logosMai.splashplus /
+ *      maiSplashCards[0..5] / maiSega
+ *  - universe / universeplus（renderMai 普通路径）：maiPsd.universe.bg / logosMai.universe|universeplus /
+ *      maiMagicalCards 六色 / maiSega
+ *  - PSD 家族（renderMaiMagical）：maiPsd[psdAssets].bg / header（magical / circleplus；circle 勾国服时换 headerCn）/
+ *      maiBands[ver.band]（仅 festival / festivalplus 的过渡态）/ logosMai[version] 或国服 logo /
+ *      maiPsd[psdAssets].deco（buddies / buddiesplus / prismplus）/ maiSega / maiPsd[psdAssets].badge /
+ *      maiMagicalCards 六色
+ *
+ * ui 开关只把「该状态下真的会画」的 logo 计入：useCnLogo（buddies/prism/prismplus 左上国服 logo、
+ * circle 清洁顶栏+2027 logo）、dxLogoVariant（deradx 五选一）、festivalLogoVariant（festival 三选一）、
+ * universeLogoVariant（universe 的 base/plus）；splash 的 splashAltBg 两张背景都列入 entries，
+ * 但 primary 固定主背景（maiBgReady() 只认 maiEarlyBgs.splash）。
+ */
+const MAI_PSD_BANK_URLS = { magical: MAI_MAGICAL_URLS, circleplus: MAI_CIRCLEPLUS_URLS, circle: MAI_CIRCLE_URLS }
+/** imgs 上的国服 logo 键名 → URL（渲染器按 cnLogoKey / 'maiCnLogo' 取值） */
+const MAI_CN_LOGO_BY_KEY = {
+  maiCnLogo: MAI_CN_LOGO_URL,
+  maiCnDxLogo: MAI_CN_DX_LOGO_URL,
+  maiCn2021Logo: MAI_CN_2021_LOGO_URL,
+  maiCn2022Logo: MAI_CN_2022_LOGO_URL,
+  maiCn2023Logo: MAI_CN_2023_LOGO_URL,
+  maiCn2024Logo: MAI_CN_2024_LOGO_URL,
+  maiCn2025Logo: MAI_CN_2025_LOGO_URL,
+  maiCn2027Logo: MAI_CN_2027_LOGO_URL
+}
+
+/**
+ * 列出某个舞萌主题真正需要的图片素材，供加载器按主题懒加载写入共享图片池 imgs。
+ *
+ * ⚠️ 维护约定：新增版本 / 新渲染家族时，必须按下面的渲染分支补全对应 path，否则该元素会静默缺失
+ *    （渲染器的 blit 会跳过 undefined，不报错）。改动渲染器读取点时要同步检查这里。
+ *
+ * @param {string} version MAI_VERSIONS 的键；不识别时回退到 festival（与 renderMai 一致）
+ * @param {{useCnLogo?:boolean, dxLogoVariant?:string, festivalLogoVariant?:string, universeLogoVariant?:string, splashAltBg?:boolean}} ui
+ *   当前 UI 状态（默认值与视图一致：jp / base / 不勾国服 logo / 不勾条纹背景）
+ * @returns {{ primary: string, entries: Array<{ url: string, path: Array<string|number> }> }}
+ *   primary = 该版本主背景 URL（renderMai 的 maiBgReady() 判定就是这张图）；
+ *   path 依次作为 imgs 的键/下标写入，例如 ['maiPsd','magical','bg']、['maiMagicalCards','cardGreen']、
+ *   ['maiEarlyBgs','dx']、['logosMai','magical']、['maiSega']，中间层由加载器自动创建。
+ */
+export function maiThemeAssets(version, ui = {}) {
+  const key = typeof version === 'string' && Object.prototype.hasOwnProperty.call(MAI_VERSIONS, version) ? version : 'festival'
+  const ver = MAI_VERSIONS[key]
+  const fam = FAMILIES[ver.family] || {}
+  const opts = ui || {}
+  const entries = []
+  const add = (url, path) => {
+    if (typeof url === 'string' && url) entries.push({ url, path })
+  }
+  const addMagicalCards = () => {
+    for (const cardKey of MAI_MAGICAL_CARD_KEYS) add(MAI_MAGICAL_CARD_URLS[cardKey], ['maiMagicalCards', cardKey])
+  }
+  const addSega = () => add(MAI_ASSET_URLS.sega, ['maiSega'])
+
+  // ---- 早期 dx 家族（deradx）：程序化卡片 + 版本背景/logo/SEGA ----
+  if (ver.family === 'earlyDx') {
+    add(MAI_EARLY_BG_URLS[ver.earlyBg], ['maiEarlyBgs', ver.earlyBg])
+    const dxVariant = opts.dxLogoVariant || 'jp'
+    if (dxVariant === 'cn') add(MAI_CN_DX_LOGO_URL, ['maiCnDxLogo'])
+    else if (dxVariant === 'cn2021') add(MAI_CN_2021_LOGO_URL, ['maiCn2021Logo'])
+    else if (dxVariant === 'cn2022') add(MAI_CN_2022_LOGO_URL, ['maiCn2022Logo'])
+    else if (dxVariant === 'plus') add(ver.plusLogo, ['logosMai', 'plus'])
+    else add(ver.logo, ['logosMai', 'deradx'])
+    add(MAI_EARLY_URLS.cardDxGreen, ['maiEarly', 'cardDxGreen'])
+    addSega()
+    return { primary: MAI_EARLY_BG_URLS[ver.earlyBg], entries }
+  }
+
+  // ---- Splash / Splash PLUS：独立版式，六色卡面模板都在 maiSplashCards ----
+  if (ver.family === 'splash' || ver.family === 'splashplus') {
+    const isSplash = ver.family === 'splash'
+    if (isSplash) {
+      // 官方两种背景：默认黄色热带款，勾选后换米白条纹款；两张都先载好，切换开关无需再等
+      add(MAI_EARLY_BG_URLS.splash, ['maiEarlyBgs', 'splash'])
+      add(MAI_EARLY_BG_URLS.splashAlt, ['maiEarlyBgs', 'splashAlt'])
+    } else {
+      add(MAI_EARLY_BG_URLS.splashplus, ['maiEarlyBgs', 'splashplus'])
+    }
+    add(ver.logo, ['logosMai', ver.family])
+    MAI_SPLASH_CARD_URLS.forEach((url, i) => add(url, ['maiSplashCards', i]))
+    addSega()
+    return { primary: MAI_EARLY_BG_URLS[isSplash ? 'splash' : 'splashplus'], entries }
+  }
+
+  // ---- UNiVERSE / UNiVERSE PLUS（renderMai 普通路径）：背景 + 版本 logo + MAGiCAL 六色卡 + SEGA ----
+  if (ver.family === 'universe') {
+    // renderMai 里 logoKey = (universe 且切了 PLUS) ? 'universeplus' : state.version
+    const logoKey = key === 'universeplus' || opts.universeLogoVariant === 'plus' ? 'universeplus' : 'universe'
+    add(MAI_MODERN_BG_URLS.universe, ['maiPsd', 'universe', 'bg'])
+    add(MAI_VERSIONS[logoKey].logo, ['logosMai', logoKey])
+    addMagicalCards()
+    addSega()
+    return { primary: MAI_MODERN_BG_URLS.universe, entries }
+  }
+
+  // ---- PSD 家族（MAGiCAL / CiRCLE / CiRCLE PLUS / FESTiVAL～PRiSM PLUS）：renderMaiMagical ----
+  const bankKey = ver.psdAssets || fam.assets || 'magical'
+  const bankUrls = MAI_PSD_BANK_URLS[bankKey]
+  const primary = bankUrls ? bankUrls.bg : MAI_MODERN_BG_URLS[bankKey]
+  add(primary, ['maiPsd', bankKey, 'bg'])
+  // 自带 PSD 顶栏的家族：magical / circleplus 用 header；circle 勾国服 logo 时换清洁顶栏 headerCn 并补 2027 logo
+  if (bankUrls && bankUrls.header) {
+    if (ver.headerCnSwap && opts.useCnLogo) {
+      if (bankUrls.headerCn) add(bankUrls.headerCn, ['maiPsd', bankKey, 'headerCn'])
+      if (ver.cnLogoKey) add(MAI_CN_LOGO_BY_KEY[ver.cnLogoKey], [ver.cnLogoKey])
+    } else {
+      add(bankUrls.header, ['maiPsd', bankKey, 'header'])
+    }
+  }
+  // FESTiVAL 家族：FAMILIES.festival.headerRect 为空 → 走「旧横幅 + 版本 logo + SEGA」过渡态
+  if (ver.family === 'festival') {
+    // 只有 festival / festivalplus 在版本表里写了 band；buddies 系 / PRiSM 系没有 banner
+    if (ver.band) add(MAI_BAND_URLS[ver.band], ['maiBands', ver.band])
+    const useCn = !!(ver.cnLogo && opts.useCnLogo)
+    if (ver.festivalLogoSelector) {
+      // 仅 festival：FESTiVAL / FESTiVAL PLUS / 国服 2023 三选一
+      const variant = opts.festivalLogoVariant || 'jp'
+      if (variant === 'plus') add(MAI_VERSIONS.festivalplus.logo, ['logosMai', 'festivalplus'])
+      else if (variant === 'cn2023') add(MAI_CN_2023_LOGO_URL, ['maiCn2023Logo'])
+      else add(ver.logo, ['logosMai', 'festival'])
+    } else if (!useCn) {
+      // buddies / buddiesplus / prism / prismplus：过渡态或 topLogos 都读 logosMai[state.version]；
+      // 但勾了国服 logo 的 buddies / prism / prismplus 只画国服 logo（topLogos 的 useCn 分支）
+      add(ver.logo, ['logosMai', key])
+    }
+    if (useCn) {
+      // PRiSM PLUS 版本表没写 cnLogoKey，渲染器 imgs[ver.cnLogoKey || 'maiCnLogo'] 同样回退到 maiCnLogo
+      const cnKey = ver.cnLogoKey || 'maiCnLogo'
+      add(MAI_CN_LOGO_BY_KEY[cnKey], [cnKey])
+    }
+    // 出框装饰云（buddies / buddiesplus / prismplus 才有素材与 decoRect）
+    if (ver.decoRect) add(MAI_MODERN_DECO_URLS[bankKey], ['maiPsd', bankKey, 'deco'])
+    addSega()
+  }
+  // 徽章：渲染器读 bank.badge（festival 家族没有独立 badge，落在同一路径也不会打架，URL 都是 badge-magical）
+  add(bankUrls ? bankUrls.badge : MAI_MAGICAL_URLS.badge, ['maiPsd', bankKey, 'badge'])
+  addMagicalCards()
+
+  return { primary, entries }
+}
+
 /* ================= 工具 ================= */
 
 function lighten(hex, ratio) {
