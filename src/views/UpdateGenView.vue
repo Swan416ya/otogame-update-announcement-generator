@@ -159,10 +159,10 @@
 
       <!-- ============ 右侧预览 ============ -->
       <main class="ug-preview">
-        <div class="ug-frame">
-          <canvas ref="canvasRef" width="1920" height="1080"></canvas>
+        <div class="ug-frame" :style="{ aspectRatio: `${canvasSize.width} / ${canvasSize.height}` }">
+          <canvas ref="canvasRef" :width="canvasSize.width" :height="canvasSize.height"></canvas>
         </div>
-        <p class="ug-tip">预览为 1920×1080 等比缩放，导出按 2× 高清渲染。曲绘只在本机浏览器读取转换，不会上传到任何服务器。</p>
+        <p class="ug-tip">预览为 {{ canvasSize.width }}×{{ canvasSize.height }} 等比缩放，导出按 2× 高清渲染。曲绘只在本机浏览器读取转换，不会上传到任何服务器。</p>
       </main>
     </div>
   </div>
@@ -176,6 +176,7 @@ import '@fontsource/noto-sans-sc/700.css'
 import '@fontsource/noto-sans-sc/900.css'
 import '@fontsource/noto-sans-jp/600.css'
 import '@fontsource/noto-sans-jp/900.css'
+import '@fontsource/noto-sans-jp/400.css'
 import '@fontsource/m-plus-rounded-1c/800.css'
 import '@fontsource/m-plus-rounded-1c/900.css'
 import newRodinUrl from '@/assets/update-gen/fonts/NewRodinPro-B.woff2'
@@ -222,6 +223,9 @@ const status = ref('')
 const statusType = ref('')
 const canvasRef = ref(null)
 const fileInputs = ref([])
+const canvasSize = computed(() => game.value === 'chuni' && (version.value === 'amazon' || version.value === 'amazon-plus')
+  ? { width: 1440, height: 1080 }
+  : { width: 1920, height: 1080 })
 let songSeq = 0
 
 const isDev = import.meta.env.DEV || (typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname))
@@ -235,7 +239,7 @@ const versionList = computed(() => {
   return out
 })
 const maiPalette = computed(() => MAI_PALETTES[MAI_VERSIONS[version.value]?.family || 'festival'])
-const OLD_CHUNI_VERSIONS = new Set(['crystal', 'crystal-plus', 'paradise', 'paradise-lost'])
+const OLD_CHUNI_VERSIONS = new Set(['amazon', 'amazon-plus', 'crystal', 'crystal-plus', 'paradise', 'paradise-lost'])
 const songLimit = computed(() => game.value === 'chuni' && OLD_CHUNI_VERSIONS.has(version.value) ? 9 : 10)
 const renderSongs = computed(() => songs.slice(0, songLimit.value))
 
@@ -514,6 +518,7 @@ async function render() {
         document.fonts.load("600 26px 'Noto Sans SC'", text),
         document.fonts.load("400 15px 'Noto Sans SC'", text),
         document.fonts.load("600 106px 'Noto Sans JP'", text),
+        document.fonts.load("400 26px 'Noto Sans JP'", text),
         document.fonts.load("900 92px 'Noto Sans JP'", text),
         document.fonts.load("900 92px 'M PLUS Rounded 1c'", text),
         document.fonts.load("500 25px 'M PLUS Rounded 1c'", text),
@@ -529,6 +534,9 @@ async function render() {
   }
   // willReadFrequently：强制软件渲染。部分嵌入式 webview 的 GPU 画布 readback
   // 会返回陈旧快照（toDataURL/getImageData 永远是首帧），软渲可绕开，真浏览器无副作用
+  const { width, height } = canvasSize.value
+  if (canvasRef.value.width !== width) canvasRef.value.width = width
+  if (canvasRef.value.height !== height) canvasRef.value.height = height
   const ctx = canvasRef.value.getContext('2d', { willReadFrequently: true })
   try {
     if (game.value === 'chuni') {
@@ -549,8 +557,8 @@ async function exportCanvas() {
   // 当前游戏的素材还在路上就等一会儿（上限 10s），保证导出与预览是同一套素材
   await Promise.race([assetPromise[game.value], new Promise((r) => setTimeout(r, 10000))])
   const off = document.createElement('canvas')
-  off.width = 3840
-  off.height = 2160
+  off.width = canvasSize.value.width * 2
+  off.height = canvasSize.value.height * 2
   const ctx = off.getContext('2d', { willReadFrequently: true })
   ctx.scale(2, 2)
   if (game.value === 'chuni') {

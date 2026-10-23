@@ -24,6 +24,8 @@ import bgCrystal from '@/assets/update-gen/chuni/bg-crystal-v2.png'
 import bgCrystalPlus from '@/assets/update-gen/chuni/bg-crystalplus-v2.png'
 import bgParadise from '@/assets/update-gen/chuni/bg-paradise-v1.png'
 import bgParadiseLost from '@/assets/update-gen/chuni/bg-paradiselost-v1.png'
+import bgAmazon from '@/assets/update-gen/chuni/bg-amazon-v1.png'
+import bgAmazonPlus from '@/assets/update-gen/chuni/bg-amazonplus-v1.png'
 import textureCrystalTitle from '@/assets/update-gen/chuni/texture-crystal-title-v2.jpg'
 import textureCrystalPlusTitle from '@/assets/update-gen/chuni/texture-crystalplus-title.jpg'
 import logoMate from '@/assets/update-gen/chuni/logo-mate.png'
@@ -37,6 +39,14 @@ import logoSunPlus from '@/assets/update-gen/chuni/logo-sun-plus.webp'
 
 /** 版本配置：style=legacy|modern；logoRect 无则不画 logo；bgSpecial='mate' 表示背景只盖中间、另叠顶/底条 */
 export const CHUNI_VERSIONS = {
+  amazon: {
+    style: 'amazon', label: 'CHUNITHM AMAZON', bg: bgAmazon,
+    logo: '/chart-theme/7-chunithm-amazon/logo.webp'
+  },
+  'amazon-plus': {
+    style: 'amazon', label: 'CHUNITHM AMAZON PLUS', bg: bgAmazonPlus,
+    logo: '/chart-theme/8-chunithm-amazonplus/logo.webp', amazonPlus: true
+  },
   crystal: {
     style: 'crystal', label: 'CHUNITHM CRYSTAL', bg: bgCrystal,
     logo: '/chart-theme/9-chunithm-crystal/logo.webp', texture: textureCrystalTitle
@@ -172,10 +182,10 @@ function drawModernBase(ctx, ver, imgs) {
 }
 
 
-function fitFontSize(ctx, text, maxWidth, baseSize, weight) {
+function fitFontSize(ctx, text, maxWidth, baseSize, weight, family = "'NewRodin', 'UDShinGo SC', 'Noto Sans JP', 'Noto Sans SC', 'MiSans', sans-serif") {
   const lines = String(text || ' ').split('\n')
   const measure = (size) => {
-    ctx.font = `${weight} ${size}px 'NewRodin', 'UDShinGo SC', 'Noto Sans JP', 'Noto Sans SC', 'MiSans', sans-serif`
+    ctx.font = `${weight} ${size}px ${family}`
     return Math.max(...lines.map((l) => ctx.measureText(l || ' ').width))
   }
   let size = baseSize
@@ -188,7 +198,7 @@ function drawCenteredText(ctx, text, cx, centerlineY, size, cfg, maxLines) {
   let lines = String(text || ' ').split('\n')
   if (lines.length > maxLines) lines = lines.slice(0, maxLines)
   ctx.save()
-  ctx.font = `${cfg.weight} ${size}px 'NewRodin', 'UDShinGo SC', 'Noto Sans JP', 'Noto Sans SC', 'MiSans', sans-serif`
+  ctx.font = `${cfg.weight} ${size}px ${cfg.family || "'NewRodin', 'UDShinGo SC', 'Noto Sans JP', 'Noto Sans SC', 'MiSans', sans-serif"}`
   ctx.fillStyle = cfg.color || '#FFFFFF'
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
@@ -280,6 +290,204 @@ function renderModern(ctx, state, imgs, ver) {
     drawCards(songs.slice(layout.topCount), topY + rowH + 24)
   }
 }
+
+/* ===================== AMAZON / AMAZON PLUS（4:3 旧框） ===================== */
+
+const AMAZON_W = 1440
+const AMAZON_H = 1080
+
+function amazonLayout(n) {
+  if (n <= 0) return null
+  if (n === 1) return { cardW: 530, cardH: 590, gap: 0, top: 350, topCount: 1 }
+  if (n === 2) return { cardW: 440, cardH: 500, gap: 38, top: 398, topCount: 2 }
+  if (n === 3) return { cardW: 375, cardH: 396, gap: 28, top: 410, topCount: 3 }
+  if (n === 4) return { cardW: 310, cardH: 327, gap: 22, top: 432, topCount: 4 }
+  const topCount = Math.ceil(n / 2)
+  const cardW = Math.min(252, (1340 - (topCount - 1) * 18) / topCount)
+  return { cardW, cardH: cardW / 0.948, gap: 18, topCount, twoRows: true }
+}
+
+function roundedRectPath(ctx, x, y, w, h, radius) {
+  const r = Math.min(radius, w / 2, h / 2)
+  ctx.beginPath()
+  ctx.moveTo(x + r, y)
+  ctx.arcTo(x + w, y, x + w, y + h, r)
+  ctx.arcTo(x + w, y + h, x, y + h, r)
+  ctx.arcTo(x, y + h, x, y, r)
+  ctx.arcTo(x, y, x + w, y, r)
+  ctx.closePath()
+}
+
+function drawAmazonRibbon(ctx) {
+  ctx.save()
+  ctx.fillStyle = '#ef413d'
+  ctx.beginPath()
+  ctx.moveTo(0, 0)
+  ctx.lineTo(258, 0)
+  ctx.lineTo(0, 258)
+  ctx.closePath()
+  ctx.fill()
+  ctx.translate(92, 91)
+  ctx.rotate(-Math.PI / 4)
+  ctx.font = "800 60px 'NewRodin', 'UDShinGo SC', 'Noto Sans JP', sans-serif"
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillStyle = '#ffffff'
+  ctx.fillText('NEW!', 0, 0)
+  ctx.restore()
+}
+
+function drawAmazonTitle(ctx, title) {
+  const text = String(title || '').replace(/\n+/g, ' ')
+  const fontSize = 112
+  const font = `600 ${fontSize}px 'Noto Sans JP', 'NewRodin', 'FOT-NewRodin Pro', 'UDShinGo SC', sans-serif`
+  ctx.save()
+  ctx.font = font
+  const measured = Math.max(ctx.measureText(text).width, 1)
+  const scaleX = Math.min(1, 1090 / measured)
+  ctx.translate((AMAZON_W - measured * scaleX) / 2 + 18, 0)
+  ctx.scale(scaleX, 1)
+  ctx.font = font
+  ctx.textAlign = 'left'
+  ctx.textBaseline = 'alphabetic'
+  ctx.lineJoin = 'round'
+  ctx.miterLimit = 2
+  const baseline = 181
+
+  // 原图的投影是一份完整轮廓向右下错位，几乎没有模糊。
+  ctx.strokeStyle = 'rgba(89, 135, 91, .42)'
+  ctx.lineWidth = 22
+  ctx.strokeText(text, 8, baseline + 8)
+  ctx.fillStyle = 'rgba(89, 135, 91, .42)'
+  ctx.fillText(text, 8, baseline + 8)
+
+  ctx.strokeStyle = '#fffbe8'
+  ctx.lineWidth = 19
+  ctx.strokeText(text, 0, baseline)
+  ctx.strokeStyle = '#536b4f'
+  ctx.lineWidth = 14
+  ctx.strokeText(text, 0, baseline)
+  ctx.strokeStyle = '#f0d57d'
+  ctx.lineWidth = 10
+  ctx.strokeText(text, 0, baseline)
+  ctx.strokeStyle = '#7b2635'
+  ctx.lineWidth = 5
+  ctx.strokeText(text, 0, baseline)
+  const face = ctx.createLinearGradient(0, 73, 0, 178)
+  face.addColorStop(0, '#fffde1')
+  face.addColorStop(0.52, '#f5e6ad')
+  face.addColorStop(1, '#fff9d3')
+  ctx.fillStyle = face
+  ctx.fillText(text, 0, baseline)
+  ctx.restore()
+}
+
+function drawAmazonCard(ctx, song, x, y, w, h) {
+  const radius = Math.max(8, w * 0.035)
+  ctx.save()
+  ctx.shadowColor = 'rgba(32, 70, 48, .42)'
+  ctx.shadowBlur = Math.max(3, w * 0.012)
+  ctx.shadowOffsetX = Math.max(6, w * 0.026)
+  ctx.shadowOffsetY = Math.max(7, w * 0.03)
+  roundedRectPath(ctx, x, y, w, h, radius)
+  ctx.fillStyle = '#e8dfbb'
+  ctx.fill()
+  ctx.restore()
+
+  roundedRectPath(ctx, x, y, w, h, radius)
+  ctx.fillStyle = '#e8dfbb'
+  ctx.fill()
+  ctx.strokeStyle = 'rgba(255, 253, 229, .95)'
+  ctx.lineWidth = Math.max(2, w * 0.006)
+  ctx.stroke()
+
+  const side = w * 0.78
+  const artX = x + (w - side) / 2
+  const artY = y + h * 0.045
+  const matte = Math.max(6, w * 0.018)
+  ctx.fillStyle = '#ffffff'
+  ctx.fillRect(artX - matte, artY - matte, side + matte * 2, side + matte * 2)
+  ctx.save()
+  ctx.beginPath()
+  ctx.rect(artX, artY, side, side)
+  ctx.clip()
+  if (song.artImg) {
+    const scale = Math.max(side / song.artImg.width, side / song.artImg.height)
+    const dw = song.artImg.width * scale
+    const dh = song.artImg.height * scale
+    blit(ctx, song.artImg, artX + (side - dw) / 2, artY + (side - dh) / 2, dw, dh)
+  } else {
+    ctx.fillStyle = '#8d918b'
+    ctx.fillRect(artX, artY, side, side)
+  }
+  ctx.restore()
+
+  const amazonFamily = "'Noto Sans JP', 'Noto Sans SC', 'MiSans', sans-serif"
+  const nameCfg = { weight: 400, lineHeight: 1.02, color: '#080808', family: amazonFamily }
+  const artistCfg = { weight: 400, lineHeight: 1.04, color: '#111111', family: amazonFamily }
+  const nameSize = fitFontSize(ctx, song.name, w * 0.91, w * 0.064, 400, amazonFamily)
+  drawCenteredText(ctx, song.name, x + w / 2, y + h * 0.83, nameSize, nameCfg, 2)
+  ctx.strokeStyle = '#419b68'
+  ctx.lineWidth = Math.max(1.5, w * 0.004)
+  ctx.beginPath()
+  ctx.moveTo(x + w * 0.055, y + h * 0.875)
+  ctx.lineTo(x + w * 0.945, y + h * 0.875)
+  ctx.stroke()
+  const artistSize = fitFontSize(ctx, song.artist, w * 0.9, w * 0.05, 400, amazonFamily)
+  drawCenteredText(ctx, song.artist, x + w / 2, y + h * 0.95, artistSize, artistCfg, 2)
+}
+
+function renderAmazon(ctx, state, imgs, ver) {
+  ctx.clearRect(0, 0, AMAZON_W, AMAZON_H)
+  blit(ctx, imgs.bgs[ver.key], 0, 0, AMAZON_W, AMAZON_H)
+  drawAmazonRibbon(ctx)
+  blit(ctx, imgs.logoSega, 1265, 22, 150, 50)
+  drawAmazonTitle(ctx, state.title)
+
+  const songs = state.songs || []
+  const layout = amazonLayout(songs.length)
+  if (layout) {
+    const drawRow = (list, rowY) => {
+      const rowW = list.length * layout.cardW + (list.length - 1) * layout.gap
+      let x = (AMAZON_W - rowW) / 2
+      list.forEach((song) => {
+        drawAmazonCard(ctx, song, x, rowY, layout.cardW, layout.cardH)
+        x += layout.cardW + layout.gap
+      })
+    }
+    if (!layout.twoRows) drawRow(songs, layout.top)
+    else {
+      const rowGap = 20
+      const totalH = layout.cardH * 2 + rowGap
+      const top = 305 + (670 - totalH) / 2
+      drawRow(songs.slice(0, layout.topCount), top)
+      drawRow(songs.slice(layout.topCount), top + layout.cardH + rowGap)
+    }
+  }
+
+  const versionLogo = imgs.logos && imgs.logos[ver.key]
+  if (versionLogo) {
+    const logoW = ver.amazonPlus ? 254 : 270
+    const logoH = logoW * versionLogo.height / versionLogo.width
+    blit(ctx, versionLogo, AMAZON_W - logoW - 24, AMAZON_H - logoH - 24, logoW, logoH)
+  }
+  const lines = String(state.credit || '').split('\n')
+  ctx.save()
+  ctx.font = "500 14px 'MiSans', 'Noto Sans SC', sans-serif"
+  ctx.textAlign = 'left'
+  ctx.textBaseline = 'alphabetic'
+  ctx.lineJoin = 'round'
+  ctx.lineWidth = 3
+  lines.forEach((line, i) => {
+    const yy = 1055 - (lines.length - 1 - i) * 17
+    ctx.strokeStyle = 'rgba(0, 62, 47, .85)'
+    ctx.strokeText(line, 18, yy)
+    ctx.fillStyle = '#ffffff'
+    ctx.fillText(line, 18, yy)
+  })
+  ctx.restore()
+}
+
 
 /* ===================== CRYSTAL / CRYSTAL PLUS 旧框 ===================== */
 
@@ -914,7 +1122,8 @@ export function renderChuni(ctx, state, imgs) {
     drawLoadingFrame(ctx)
     return
   }
-  if (ver.style === 'crystal') renderCrystal(ctx, state, imgs, withKey)
+  if (ver.style === 'amazon') renderAmazon(ctx, state, imgs, withKey)
+  else if (ver.style === 'crystal') renderCrystal(ctx, state, imgs, withKey)
   else if (ver.style === 'paradise') renderParadise(ctx, state, imgs, withKey)
   else if (ver.style === 'legacy') renderLegacy(ctx, state, imgs, withKey)
   else renderModern(ctx, state, imgs, withKey)
