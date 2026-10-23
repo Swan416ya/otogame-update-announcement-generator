@@ -354,31 +354,69 @@ function drawAmazonTitle(ctx, title) {
   ctx.miterLimit = 2
   const baseline = 181
 
-  // 原图的投影是一份完整轮廓向右下错位，几乎没有模糊。
-  ctx.strokeStyle = 'rgba(89, 135, 91, .42)'
-  ctx.lineWidth = 22
-  ctx.strokeText(text, 8, baseline + 8)
-  ctx.fillStyle = 'rgba(89, 135, 91, .42)'
-  ctx.fillText(text, 8, baseline + 8)
+  // 阴影不是模糊外发光，而是整套字形向右下逐像素堆出的短挤出体；
+  // 越靠近正面越偏绿，远端转为半透明灰褐色，形成原图的立体侧面。
+  ctx.save()
+  ctx.shadowColor = 'rgba(73, 78, 63, .13)'
+  ctx.shadowBlur = 3
+  ctx.shadowOffsetX = 2
+  ctx.shadowOffsetY = 3
+  for (let depth = 10; depth >= 2; depth -= 1) {
+    const near = 1 - (depth - 2) / 8
+    const green = Math.round(154 + near * 21)
+    const red = Math.round(126 + near * 18)
+    const blue = Math.round(124 + near * 17)
+    ctx.fillStyle = `rgba(${red}, ${green}, ${blue}, ${0.08 + near * 0.05})`
+    ctx.strokeStyle = ctx.fillStyle
+    ctx.lineWidth = 15
+    ctx.strokeText(text, depth * 0.75, baseline + depth)
+    ctx.fillText(text, depth * 0.75, baseline + depth)
+  }
+  ctx.restore()
 
-  ctx.strokeStyle = '#fffbe8'
-  ctx.lineWidth = 19
+  // 正面严格只有两层描边：外侧露出约 2px 的浅绿线，里面是较粗的棕红线。
+  ctx.strokeStyle = '#C5E1BE'
+  ctx.lineWidth = 15
   ctx.strokeText(text, 0, baseline)
-  ctx.strokeStyle = '#536b4f'
-  ctx.lineWidth = 14
-  ctx.strokeText(text, 0, baseline)
-  ctx.strokeStyle = '#f0d57d'
+  ctx.strokeStyle = '#8C3D3E'
   ctx.lineWidth = 10
   ctx.strokeText(text, 0, baseline)
-  ctx.strokeStyle = '#7b2635'
-  ctx.lineWidth = 5
-  ctx.strokeText(text, 0, baseline)
-  const face = ctx.createLinearGradient(0, 73, 0, 178)
-  face.addColorStop(0, '#fffde1')
-  face.addColorStop(0.52, '#f5e6ad')
-  face.addColorStop(1, '#fff9d3')
-  ctx.fillStyle = face
-  ctx.fillText(text, 0, baseline)
+
+  // 金色字面单独做成遮罩：中段为橙金箔带，并叠一条柔和的水平高光。
+  const faceLayer = document.createElement('canvas')
+  faceLayer.width = Math.ceil(measured + 24)
+  faceLayer.height = 220
+  const fc = faceLayer.getContext('2d')
+  fc.font = font
+  fc.textAlign = 'left'
+  fc.textBaseline = 'alphabetic'
+  fc.fillStyle = '#ffffff'
+  fc.fillText(text, 0, baseline)
+  fc.globalCompositeOperation = 'source-in'
+  const gold = fc.createLinearGradient(0, 72, 0, 186)
+  gold.addColorStop(0, '#fff9d9')
+  gold.addColorStop(0.18, '#efd07b')
+  gold.addColorStop(0.36, '#fff3b1')
+  gold.addColorStop(0.49, '#f7c13a')
+  gold.addColorStop(0.57, '#d77a1d')
+  gold.addColorStop(0.65, '#ffd75a')
+  gold.addColorStop(0.8, '#fff1ac')
+  gold.addColorStop(1, '#fffce7')
+  fc.fillStyle = gold
+  fc.fillRect(0, 0, faceLayer.width, faceLayer.height)
+
+  fc.globalCompositeOperation = 'source-atop'
+  fc.save()
+  fc.shadowColor = 'rgba(255, 252, 190, .95)'
+  fc.shadowBlur = 12
+  fc.fillStyle = 'rgba(255, 255, 224, .72)'
+  fc.fillRect(0, 126, faceLayer.width, 7)
+  fc.restore()
+  // 极淡的金箔纵纹，避免字面退化成一块普通渐变色。
+  fc.fillStyle = 'rgba(255, 255, 255, .11)'
+  for (let x = 4; x < faceLayer.width; x += 11) fc.fillRect(x, 76, 2, 104)
+  fc.globalCompositeOperation = 'source-over'
+  ctx.drawImage(faceLayer, 0, 0)
   ctx.restore()
 }
 
