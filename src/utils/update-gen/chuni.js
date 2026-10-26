@@ -37,6 +37,11 @@ import logoNew from '@/assets/update-gen/chuni/logo-new.webp'
 import logoNewPlus from '@/assets/update-gen/chuni/logo-new-plus.webp'
 import logoSun from '@/assets/update-gen/chuni/logo-sun.webp'
 import logoSunPlus from '@/assets/update-gen/chuni/logo-sun-plus.webp'
+import logoCnNew from '@/assets/update-gen/chuni/logo-cn-new-v1.png'
+import logoCn2024 from '@/assets/update-gen/chuni/logo-cn-2024-v1.png'
+import logoCn2025 from '@/assets/update-gen/chuni/logo-cn-2025-v1.png'
+import logoCn2026 from '@/assets/update-gen/chuni/logo-cn-2026-v1.png'
+import logoCn2027 from '@/assets/update-gen/chuni/logo-cn-2027-v1.png'
 import topBarUrl from '@/assets/update-gen/chuni/top-bar.webp'
 import bottomBarUrl from '@/assets/update-gen/chuni/bottom-bar.png'
 import cardBgUrl from '@/assets/update-gen/chuni/card-bg.webp'
@@ -86,15 +91,30 @@ export const CHUNI_VERSIONS = {
     style: 'paradise', label: 'CHUNITHM PARADISE LOST', bg: bgParadiseLost,
     logo: '/chart-theme/12-chunithm-paradiselost/logo.webp', paradiseLost: true
   },
-  new: { style: 'legacy', label: 'CHUNITHM NEW', bg: bgNew, logo: logoNew, logoRect: [1900, 40, 272, 120] },
-  'new-plus': { style: 'legacy', label: 'CHUNITHM NEW PLUS', bg: bgNewPlus, logo: logoNewPlus, logoRect: [1909, 26, 306, 138] },
+  new: {
+    style: 'legacy', label: 'CHUNITHM NEW', bg: bgNew, logo: logoNew, logoRect: [1900, 40, 272, 120],
+    cnLogo: logoCnNew, cnLogoRect: [1902, 18, 322, 140], cnLabel: '中二节奏 NEW'
+  },
+  'new-plus': {
+    style: 'legacy', label: 'CHUNITHM NEW PLUS', bg: bgNewPlus, logo: logoNewPlus, logoRect: [1909, 26, 306, 138],
+    cnLogo: logoCn2024, cnLogoRect: [1902, 16, 322, 146], cnLabel: '中二节奏 2024'
+  },
   sun: { style: 'legacy', label: 'CHUNITHM SUN', bg: bgSun, logo: logoSun, logoRect: [1900, 24, 209, 155] },
   'sun-plus': { style: 'legacy', label: 'CHUNITHM SUN PLUS', bg: bgSunPlus, logo: logoSunPlus, logoRect: [1900, 24, 209, 155] },
-  luminous: { style: 'modern', label: 'CHUNITHM LUMINOUS', bg: bgLuminous, logo: logoLuminous, logoRect: [1609, 24, 289, 147] },
+  luminous: {
+    style: 'modern', label: 'CHUNITHM LUMINOUS', bg: bgLuminous, logo: logoLuminous, logoRect: [1609, 24, 289, 147],
+    cnLogo: logoCn2025, cnLogoRect: [1618, 8, 275, 180], cnLabel: '中二节奏 2025'
+  },
   'luminous-plus': { style: 'modern', label: 'CHUNITHM LUMINOUS PLUS', bg: bgLuminousPlus, logo: logoLuminousPlus, logoRect: [1618, 9, 266, 187] },
-  verse: { style: 'modern', label: 'CHUNITHM VERSE', bg: bgVerse, logo: logoVerse, logoRect: [1631, 8, 255, 185] },
+  verse: {
+    style: 'modern', label: 'CHUNITHM VERSE', bg: bgVerse, logo: logoVerse, logoRect: [1631, 8, 255, 185],
+    cnLogo: logoCn2026, cnLogoRect: [1624, 6, 265, 180], cnLabel: '中二节奏 2026'
+  },
   xverse: { style: 'modern', label: 'CHUNITHM X-Verse', bg: bgXverse, logo: null },
-  xversex: { style: 'modern', label: 'CHUNITHM X-Verse-X', bg: bgXversex, logo: null },
+  xversex: {
+    style: 'modern', label: 'CHUNITHM X-Verse-X', bg: bgXversex, logo: null,
+    cnLogo: logoCn2027, cnLogoRect: [1604, 21, 292, 146], cnLabel: '中二节奏 2027'
+  },
   mate: { style: 'modern', label: 'CHUNITHM MATE', bg: bgMate, logo: logoMate, logoRect: [1599, 33, 301, 131], bgSpecial: 'mate' }
 }
 
@@ -147,6 +167,7 @@ export function chuniThemeAssets(version, ui = {}) {
   // 背景必须写在 state.version 对应的键上：renderChuni 用 state.version 取 imgs.bgs[key]。
   add(ver.bg, ['bgs', key])
   if (ver.logo) add(ver.logo, ['logos', key])
+  if (ui.useCnLogo && ver.cnLogo) add(ver.cnLogo, ['logosCn', key])
   if (ver.texture) add(ver.texture, ['chuniTitleTextures', key])
   const shared = CHUNI_FAMILY_SHARED[ver.style] || CHUNI_FAMILY_SHARED.modern
   shared.forEach(([asset, path]) => add(CHUNI_SHARED_ASSETS[asset], path))
@@ -244,7 +265,7 @@ function drawGlobalUltimaAccent(ctx) {
   ctx.fillRect(0, 192, CANVAS_W, 5)
 }
 
-function drawModernBase(ctx, ver, imgs, globalUltima) {
+function drawModernBase(ctx, ver, imgs, globalUltima, useCnLogo) {
   ctx.clearRect(0, 0, CANVAS_W, CANVAS_H)
   if (globalUltima) {
     blit(ctx, imgs.bgUltimaGlobal, 0, 197, 1920, 815)
@@ -277,9 +298,11 @@ function drawModernBase(ctx, ver, imgs, globalUltima) {
     blit(ctx, imgs.bottomBar, 0, 1012, 1920, 68)
     ctx.restore()
   }
-  if (ver.logo && imgs.logos[ver.key]) {
-    const [lx, ly, lw, lh] = ver.logoRect
-    blit(ctx, imgs.logos[ver.key], lx, ly, lw, lh)
+  const selectedLogo = useCnLogo && ver.cnLogo ? imgs.logosCn?.[ver.key] : imgs.logos?.[ver.key]
+  const selectedRect = useCnLogo && ver.cnLogo ? ver.cnLogoRect : ver.logoRect
+  if (selectedLogo && selectedRect) {
+    const [lx, ly, lw, lh] = selectedRect
+    blit(ctx, selectedLogo, lx, ly, lw, lh)
   }
 }
 
@@ -365,7 +388,7 @@ function drawModernFooter(ctx, imgs, credit) {
 }
 
 function renderModern(ctx, state, imgs, ver) {
-  drawModernBase(ctx, { ...ver, key: state.version }, imgs, state.globalUltima)
+  drawModernBase(ctx, { ...ver, key: state.version }, imgs, state.globalUltima, state.useCnLogo)
   drawChuniTitle(ctx, state.title, state.globalUltima)
   drawModernFooter(ctx, imgs, state.credit)
 
@@ -1156,9 +1179,11 @@ function drawLegacyHeader(ctx, state, imgs, ver) {
   if (state.globalUltima) drawGlobalUltimaAccent(ctx)
 
   // 版本 logo（横幅右侧，logoRect = [右缘x, 顶y, 宽, 高]）
-  if (ver.logo && imgs.logos[ver.key]) {
-    const [rx, ly, lw, lh] = ver.logoRect
-    blit(ctx, imgs.logos[ver.key], rx - lw, ly, lw, lh)
+  const selectedLogo = state.useCnLogo && ver.cnLogo ? imgs.logosCn?.[ver.key] : imgs.logos?.[ver.key]
+  const selectedRect = state.useCnLogo && ver.cnLogo ? ver.cnLogoRect : ver.logoRect
+  if (selectedLogo && selectedRect) {
+    const [rx, ly, lw, lh] = selectedRect
+    blit(ctx, selectedLogo, rx - lw, ly, lw, lh)
   }
 
   drawChuniTitle(ctx, state.title, state.globalUltima)

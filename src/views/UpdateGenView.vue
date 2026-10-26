@@ -51,6 +51,13 @@
           <p class="ug-hint">启用后切换为 ULTIMA 专用标题与红黑背景，现有及新增曲目都会固定使用 ULTIMA 卡片。</p>
         </section>
 
+        <section v-if="chuniCnLogoLabel" class="ug-group">
+          <label class="ug-check">
+            <input v-model="useCnLogo" type="checkbox" />
+            使用国服 Logo（{{ chuniCnLogoLabel }}）
+          </label>
+        </section>
+
         <!-- Splash 两种官方公告背景：黄色热带款 / 米白竖条纹款。 -->
         <section v-if="game === 'mai' && version === 'splash'" class="ug-group">
           <label class="ug-check">
@@ -282,6 +289,7 @@ const versionList = computed(() => {
   return out
 })
 const supportsGlobalUltima = computed(() => game.value === 'chuni' && supportsChuniGlobalUltima(version.value))
+const chuniCnLogoLabel = computed(() => game.value === 'chuni' ? (CHUNI_VERSIONS[version.value]?.cnLabel || '') : '')
 /** 影响舞萌素材清单的 UI 开关（切开关时会补对应的 logo） */
 const maiUi = computed(() => ({
   useCnLogo: useCnLogo.value,
@@ -292,7 +300,7 @@ const maiUi = computed(() => ({
 }))
 /** 当前主题需要哪些素材（由渲染器自己声明，见 chuni.js / mai.js） */
 const themeAssets = computed(() => {
-  if (game.value === 'chuni') return chuniThemeAssets(version.value, { globalUltima: globalUltima.value })
+  if (game.value === 'chuni') return chuniThemeAssets(version.value, { globalUltima: globalUltima.value, useCnLogo: useCnLogo.value })
   const mod = maiModule.value
   return mod ? mod.maiThemeAssets(version.value, maiUi.value) : null
 })
@@ -333,6 +341,9 @@ watch(game, async (g) => {
 
 watch(supportsGlobalUltima, (supported) => {
   if (!supported) globalUltima.value = false
+})
+watch(chuniCnLogoLabel, (label) => {
+  if (game.value === 'chuni' && !label) useCnLogo.value = false
 })
 watch(globalUltima, (enabled) => {
   if (enabled) songs.forEach((song) => { song.ultima = true })
@@ -480,7 +491,7 @@ function collectText() {
 /** 按当前游戏/版本画到指定画布；预览与导出共用同一段逻辑，保证两边素材一致 */
 function paintTo(ctx) {
   if (game.value === 'chuni') {
-    renderChuni(ctx, { version: version.value, title: title.value, songs: renderSongs.value, credit: credit.value, globalUltima: globalUltima.value }, imgs)
+    renderChuni(ctx, { version: version.value, title: title.value, songs: renderSongs.value, credit: credit.value, globalUltima: globalUltima.value, useCnLogo: useCnLogo.value }, imgs)
     return true
   }
   const mod = maiModule.value
