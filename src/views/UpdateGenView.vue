@@ -43,6 +43,14 @@
           </select>
         </section>
 
+        <section v-if="supportsGlobalUltima" class="ug-group">
+          <label class="ug-check ug-check--ultima">
+            <input v-model="globalUltima" type="checkbox" />
+            全局 ULTIMA 模式
+          </label>
+          <p class="ug-hint">启用后切换为 ULTIMA 专用标题与红黑背景，现有及新增曲目都会固定使用 ULTIMA 卡片。</p>
+        </section>
+
         <!-- Splash 两种官方公告背景：黄色热带款 / 米白竖条纹款。 -->
         <section v-if="game === 'mai' && version === 'splash'" class="ug-group">
           <label class="ug-check">
@@ -87,7 +95,7 @@
               <div class="ug-song__head">
                 <span class="ug-song__idx">#{{ String(i + 1).padStart(2, '0') }}</span>
                 <label v-if="game === 'chuni'" class="ug-song__ultima" :class="{ on: s.ultima }">
-                  <input v-model="s.ultima" type="checkbox" /> ULTiMA
+                  <input v-model="s.ultima" type="checkbox" :disabled="globalUltima" /> ULTiMA
                 </label>
                 <button type="button" class="ug-song__del" title="删除" @click="removeSong(s.id)">×</button>
               </div>
@@ -183,7 +191,7 @@
 
 <script setup>
 import { ref, reactive, computed, watch, onMounted, onBeforeUnmount, nextTick, shallowRef } from 'vue'
-import { CHUNI_VERSIONS, renderChuni, chuniThemeAssets } from '@/utils/update-gen/chuni'
+import { CHUNI_VERSIONS, renderChuni, chuniThemeAssets, supportsChuniGlobalUltima } from '@/utils/update-gen/chuni'
 import { ensureFonts, getAssetStore } from '@/utils/update-gen/themeAssets'
 // Noto Sans SC / M PLUS 已由 main.js 全局引入；这里只补本页用到而全局没有的 Noto Sans JP 600/900
 import '@fontsource/noto-sans-jp/600.css'
@@ -228,6 +236,7 @@ const useCnLogo = ref(false)
 const dxLogoVariant = ref('jp')
 const festivalLogoVariant = ref('jp')
 const universeLogoVariant = ref('base')
+const globalUltima = ref(false)
 const status = ref('')
 const statusType = ref('')
 const canvasRef = ref(null)
@@ -272,6 +281,7 @@ const versionList = computed(() => {
   for (const k of maiVersionKeys()) out[k] = mod.MAI_VERSIONS[k]
   return out
 })
+const supportsGlobalUltima = computed(() => game.value === 'chuni' && supportsChuniGlobalUltima(version.value))
 /** 影响舞萌素材清单的 UI 开关（切开关时会补对应的 logo） */
 const maiUi = computed(() => ({
   useCnLogo: useCnLogo.value,
@@ -282,7 +292,7 @@ const maiUi = computed(() => ({
 }))
 /** 当前主题需要哪些素材（由渲染器自己声明，见 chuni.js / mai.js） */
 const themeAssets = computed(() => {
-  if (game.value === 'chuni') return chuniThemeAssets(version.value)
+  if (game.value === 'chuni') return chuniThemeAssets(version.value, { globalUltima: globalUltima.value })
   const mod = maiModule.value
   return mod ? mod.maiThemeAssets(version.value, maiUi.value) : null
 })
@@ -293,7 +303,7 @@ const maiPalette = computed(() => {
 })
 const OLD_CHUNI_VERSIONS = new Set(['amazon', 'amazon-plus', 'crystal', 'crystal-plus', 'paradise', 'paradise-lost'])
 const songLimit = computed(() => game.value === 'chuni' && OLD_CHUNI_VERSIONS.has(version.value) ? 9 : 10)
-const renderSongs = computed(() => songs.slice(0, songLimit.value))
+const renderSongs = computed(() => songs.slice(0, songLimit.value).map((song) => globalUltima.value ? { ...song, ultima: true } : song))
 
 /**
  * 当前主题要用到的字体集合。
@@ -321,9 +331,16 @@ watch(game, async (g) => {
   ensureCurrentTheme()
 })
 
+watch(supportsGlobalUltima, (supported) => {
+  if (!supported) globalUltima.value = false
+})
+watch(globalUltima, (enabled) => {
+  if (enabled) songs.forEach((song) => { song.ultima = true })
+})
+
 function addSong() {
   if (songs.length >= songLimit.value) return
-  songs.push({ id: ++songSeq, name: '', artist: '', art: '', artUrlRaw: '', ultima: false, frameIndex: null })
+  songs.push({ id: ++songSeq, name: '', artist: '', art: '', artUrlRaw: '', ultima: globalUltima.value, frameIndex: null })
 }
 function removeSong(id) {
   const i = songs.findIndex((s) => s.id === id)
@@ -463,7 +480,7 @@ function collectText() {
 /** 按当前游戏/版本画到指定画布；预览与导出共用同一段逻辑，保证两边素材一致 */
 function paintTo(ctx) {
   if (game.value === 'chuni') {
-    renderChuni(ctx, { version: version.value, title: title.value, songs: renderSongs.value, credit: credit.value }, imgs)
+    renderChuni(ctx, { version: version.value, title: title.value, songs: renderSongs.value, credit: credit.value, globalUltima: globalUltima.value }, imgs)
     return true
   }
   const mod = maiModule.value
@@ -519,15 +536,15 @@ async function render() {
   if (latest && !store.isReady(latest.primary) && paintedTheme) return
   try {
     paintTo(ctx)
-    paintedTheme = `${game.value}:${version.value}`
+    paintedTheme = `${game.value}:${version.value}:${globalUltima.value}`
   } catch (e) {
     setStatus('渲染失败：' + (e.message || e), 'err')
   }
 }
 
 /* 版本/开关变化：先补该主题素材（切换主题才下载新图）；内容变化只触发重绘 */
-watch([version, useCnLogo, dxLogoVariant, festivalLogoVariant, universeLogoVariant, splashAltBg], () => ensureCurrentTheme())
-watch([version, title, credit, songs, useCnLogo, showBadge, dxLogoVariant, festivalLogoVariant, universeLogoVariant, splashAltBg], scheduleRender, { deep: true })
+watch([version, globalUltima, useCnLogo, dxLogoVariant, festivalLogoVariant, universeLogoVariant, splashAltBg], () => ensureCurrentTheme())
+watch([version, title, credit, songs, globalUltima, useCnLogo, showBadge, dxLogoVariant, festivalLogoVariant, universeLogoVariant, splashAltBg], scheduleRender, { deep: true })
 
 /* ---------- 导出 ---------- */
 async function exportCanvas() {
@@ -703,6 +720,17 @@ onBeforeUnmount(() => {
   cursor: pointer;
 }
 .ug-check input { accent-color: #7c8cff; }
+.ug-check--ultima {
+  color: #ff6a8f;
+  font-weight: 700;
+}
+.ug-check--ultima input { accent-color: #ff315f; }
+.ug-hint {
+  margin: 7px 0 0 24px;
+  color: rgba(232, 234, 246, 0.48);
+  font-size: 11px;
+  line-height: 1.55;
+}
 .ug-group-head .ug-label { margin-bottom: 0; }
 
 .ug-tabs { display: flex; gap: 8px; }

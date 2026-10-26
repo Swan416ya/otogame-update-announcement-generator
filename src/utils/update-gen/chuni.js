@@ -26,6 +26,7 @@ import bgParadise from '@/assets/update-gen/chuni/bg-paradise-v1.png'
 import bgParadiseLost from '@/assets/update-gen/chuni/bg-paradiselost-v1.png'
 import bgAmazon from '@/assets/update-gen/chuni/bg-amazon-v1.png'
 import bgAmazonPlus from '@/assets/update-gen/chuni/bg-amazonplus-v1.png'
+import bgUltimaGlobal from '@/assets/update-gen/chuni/bg-ultima-global-v1.png'
 import textureCrystalTitle from '@/assets/update-gen/chuni/texture-crystal-title-v2.jpg'
 import textureCrystalPlusTitle from '@/assets/update-gen/chuni/texture-crystalplus-title.jpg'
 import logoMate from '@/assets/update-gen/chuni/logo-mate.png'
@@ -53,6 +54,7 @@ export const CHUNI_SHARED_ASSETS = {
   cardBgUltima: cardBgUltimaUrl,
   cardBgLegacy: cardBgLegacyUrl,
   cardBgUltimaLegacy: cardBgUltimaLegacyUrl,
+  bgUltimaGlobal,
   bandLegacy: bandLegacyUrl,
   logoSega: logoSegaUrl
 }
@@ -129,7 +131,12 @@ const CHUNI_FAMILY_SHARED = {
  *   primary = 该版本背景 URL（renderChuni 用它判断能否绘制）；path 依次作为 imgs 的键/下标写入，
  *   例如 ['bgs','mate']、['logos','crystal']、['logoSega']，中间层由加载器自动创建。
  */
-export function chuniThemeAssets(version) {
+export function supportsChuniGlobalUltima(version) {
+  const ver = CHUNI_VERSIONS[version]
+  return ver?.style === 'legacy' || ver?.style === 'modern'
+}
+
+export function chuniThemeAssets(version, ui = {}) {
   const key = typeof version === 'string' && version ? version : 'mate'
   const ver = Object.prototype.hasOwnProperty.call(CHUNI_VERSIONS, key) ? CHUNI_VERSIONS[key] : CHUNI_VERSIONS.mate
   const entries = []
@@ -143,8 +150,14 @@ export function chuniThemeAssets(version) {
   if (ver.texture) add(ver.texture, ['chuniTitleTextures', key])
   const shared = CHUNI_FAMILY_SHARED[ver.style] || CHUNI_FAMILY_SHARED.modern
   shared.forEach(([asset, path]) => add(CHUNI_SHARED_ASSETS[asset], path))
+  if (ui.globalUltima && supportsChuniGlobalUltima(key)) {
+    add(CHUNI_SHARED_ASSETS.bgUltimaGlobal, ['bgUltimaGlobal'])
+  }
 
-  return { primary: ver.bg, entries }
+  return {
+    primary: ui.globalUltima && supportsChuniGlobalUltima(key) ? CHUNI_SHARED_ASSETS.bgUltimaGlobal : ver.bg,
+    entries
+  }
 }
 
 /** 安全贴图：素材还没加载完（首帧会先出占位版式）时跳过，避免 drawImage(undefined) 直接抛错 */
@@ -177,12 +190,12 @@ const CARD = {
   artist: { centerline: 0.906, size: 0.047, sizeSingle: 0.0542, pad: 0.15, weight: 600, maxLines: 2, lineHeight: 1.3 }
 }
 
-/** ULTiMA 卡：底图从官方 xversex 混排公告图抠出（ULTIMA 条与红线已 baked，经预加载后由 imgs 传入），
- *  曲绘孔和文字区位置与普通卡不同，文字为黑色 */
+/** ULTiMA 卡：底图从官方 xversex 混排公告图抠出（ULTIMA 条与红线已 baked，经预加载后由 imgs 传入）。
+ *  曲绘孔跟随专用底图，曲名/曲师则与普通卡共用同一组中心线，避免混排时上下错位。 */
 const CARD_ULTIMA = {
   art: { x: 0.1324, y: 0.0768, w: 0.7576, h: 0.5798 },
-  name: { centerline: 0.795, size: 0.0633, sizeSingle: 0.0723, pad: 0.11, weight: 900, lineHeight: 1.3, color: '#1a1a1a' },
-  artist: { centerline: 0.925, size: 0.047, sizeSingle: 0.0542, pad: 0.12, weight: 600, maxLines: 3, lineHeight: 1.35, color: '#2a2a2a' }
+  name: { centerline: 0.779, size: 0.0633, sizeSingle: 0.0723, pad: 0.11, weight: 900, lineHeight: 1.3, color: '#1a1a1a' },
+  artist: { centerline: 0.906, size: 0.047, sizeSingle: 0.0542, pad: 0.15, weight: 600, maxLines: 2, lineHeight: 1.3, color: '#2a2a2a' }
 }
 
 /** LEGACY 常量（自 new.png / newplus.png 测量；横幅整条与卡片底图均为官方图抠出/修补的资产，
@@ -222,9 +235,27 @@ export function calcChuniLayout(n) {
   return { mode: 'two-rows', cols: topCount, cardW, cardH, gap: 24, topCount, bottomCount: n - topCount }
 }
 
-function drawModernBase(ctx, ver, imgs) {
+function drawGlobalUltimaAccent(ctx) {
+  const accent = ctx.createLinearGradient(0, 0, CANVAS_W, 0)
+  accent.addColorStop(0, '#c50013')
+  accent.addColorStop(0.5, '#ff174e')
+  accent.addColorStop(1, '#c50013')
+  ctx.fillStyle = accent
+  ctx.fillRect(0, 192, CANVAS_W, 5)
+}
+
+function drawModernBase(ctx, ver, imgs, globalUltima) {
   ctx.clearRect(0, 0, CANVAS_W, CANVAS_H)
-  if (ver.bgSpecial === 'mate') {
+  if (globalUltima) {
+    blit(ctx, imgs.bgUltimaGlobal, 0, 197, 1920, 815)
+    blit(ctx, imgs.topBar, 0, 0, 1920, 197)
+    drawGlobalUltimaAccent(ctx)
+    ctx.save()
+    ctx.shadowColor = 'rgba(0,0,0,0.36)'
+    ctx.shadowBlur = 21
+    blit(ctx, imgs.bottomBar, 0, 1012, 1920, 68)
+    ctx.restore()
+  } else if (ver.bgSpecial === 'mate') {
     blit(ctx, imgs.bgs.mate, 1, 165, 1919, 936)
     blit(ctx, imgs.topBar, 0, 0, 1920, 197)
     ctx.save()
@@ -334,8 +365,8 @@ function drawModernFooter(ctx, imgs, credit) {
 }
 
 function renderModern(ctx, state, imgs, ver) {
-  drawModernBase(ctx, { ...ver, key: state.version }, imgs)
-  drawChuniTitle(ctx, state.title)
+  drawModernBase(ctx, { ...ver, key: state.version }, imgs, state.globalUltima)
+  drawChuniTitle(ctx, state.title, state.globalUltima)
   drawModernFooter(ctx, imgs, state.credit)
 
   const songs = state.songs
@@ -1056,10 +1087,11 @@ export function calcLegacyLayout(n) {
 
 /** 标题渲染（LEGACY/MODERN 完全共用，官方实测：字号 114、基线 157、纯黄 #FFFF11、
  *  数字字号比 1.17、藏青外圈 7 + 白 keyline 1.6 + 投影） */
-function drawChuniTitle(ctx, title) {
+function drawChuniTitle(ctx, title, globalUltima = false) {
   const lines = String(title || '').split('\n').filter((l, i, arr) => l.trim() !== '' || arr.length === 1)
   if (!lines.length) lines.push('')
-  const fontSize = 114
+  // ULTIMA 官图为右上角版本 logo 留出的标题安全区更宽，字号也比通常乐曲追加页略小。
+  const fontSize = globalUltima ? 100 : 114
   const digitRatio = 1.17
   const lineHeight = fontSize * 1.15
   const startY = 157 - ((lines.length - 1) * lineHeight) / 2
@@ -1073,7 +1105,11 @@ function drawChuniTitle(ctx, title) {
   lc.lineJoin = 'round'
   lc.miterLimit = 2
   lc.lineWidth = 11
-  lc.fillStyle = '#FFFF11'
+  const ultimaFill = lc.createLinearGradient(0, 52, 0, 174)
+  ultimaFill.addColorStop(0, '#ff3140')
+  ultimaFill.addColorStop(0.5, '#ff405f')
+  ultimaFill.addColorStop(1, '#f02ea9')
+  lc.fillStyle = globalUltima ? ultimaFill : '#FFFF11'
 
   lines.forEach((line, i) => {
     let x = 0
@@ -1087,17 +1123,17 @@ function drawChuniTitle(ctx, title) {
     }
     const bx = (CANVAS_W - Math.max(x - 2, 0)) / 2
     const by = startY + i * lineHeight
-    // 藏青外圈 → 白 keyline → 黄填充
+    // 通常模式：藏青外圈 → 白 keyline → 黄填充；全局 ULTIMA：灰蓝外圈 → 白 keyline → 红粉渐变。
     chars.forEach(({ ch, x: cx, size }) => {
       lc.font = fontOf(size)
-      lc.strokeStyle = '#1A2E36'
-      lc.lineWidth = 7
+      lc.strokeStyle = globalUltima ? '#69727d' : '#1A2E36'
+      lc.lineWidth = globalUltima ? 9 : 7
       lc.strokeText(ch, bx + cx, by)
     })
     chars.forEach(({ ch, x: cx, size }) => {
       lc.font = fontOf(size)
       lc.strokeStyle = '#ffffff'
-      lc.lineWidth = 1.6
+      lc.lineWidth = globalUltima ? 3.2 : 1.6
       lc.strokeText(ch, bx + cx, by)
     })
     chars.forEach(({ ch, x: cx, size }) => {
@@ -1107,8 +1143,8 @@ function drawChuniTitle(ctx, title) {
   })
 
   ctx.save()
-  ctx.shadowColor = 'rgba(0, 0, 0, 0.45)'
-  ctx.shadowBlur = 12
+  ctx.shadowColor = globalUltima ? 'rgba(0, 0, 0, 0.38)' : 'rgba(0, 0, 0, 0.45)'
+  ctx.shadowBlur = globalUltima ? 8 : 12
   blit(ctx, layer, 0, 0)
   ctx.restore()
 }
@@ -1117,6 +1153,7 @@ function drawChuniTitle(ctx, title) {
 function drawLegacyHeader(ctx, state, imgs, ver) {
   // 官方横幅整条
   blit(ctx, imgs.bandLegacy, 0, 0, 1920, 196)
+  if (state.globalUltima) drawGlobalUltimaAccent(ctx)
 
   // 版本 logo（横幅右侧，logoRect = [右缘x, 顶y, 宽, 高]）
   if (ver.logo && imgs.logos[ver.key]) {
@@ -1124,7 +1161,7 @@ function drawLegacyHeader(ctx, state, imgs, ver) {
     blit(ctx, imgs.logos[ver.key], rx - lw, ly, lw, lh)
   }
 
-  drawChuniTitle(ctx, state.title)
+  drawChuniTitle(ctx, state.title, state.globalUltima)
 }
 
 function drawLegacyCard(ctx, song, x, y, w, h, cardBgImg) {
@@ -1175,11 +1212,15 @@ function drawLegacyCard(ctx, song, x, y, w, h, cardBgImg) {
 function renderLegacy(ctx, state, imgs, ver) {
   ctx.clearRect(0, 0, CANVAS_W, CANVAS_H)
   // 背景 cover-fit（资产已修掉底部条，无字无 logo）
-  const img = imgs.bgs[ver.key]
-  const scale = Math.max(CANVAS_W / img.width, CANVAS_H / img.height)
-  const dw = img.width * scale
-  const dh = img.height * scale
-  blit(ctx, img, (CANVAS_W - dw) / 2, (CANVAS_H - dh) / 2, dw, dh)
+  if (state.globalUltima) {
+    blit(ctx, imgs.bgUltimaGlobal, 0, 196, 1920, 816)
+  } else {
+    const img = imgs.bgs[ver.key]
+    const scale = Math.max(CANVAS_W / img.width, CANVAS_H / img.height)
+    const dw = img.width * scale
+    const dh = img.height * scale
+    blit(ctx, img, (CANVAS_W - dw) / 2, (CANVAS_H - dh) / 2, dw, dh)
+  }
 
   drawLegacyHeader(ctx, state, imgs, ver)
 
@@ -1226,7 +1267,8 @@ export function renderChuni(ctx, state, imgs) {
   const ver = CHUNI_VERSIONS[state.version] || CHUNI_VERSIONS.mate
   const withKey = { ...ver, key: state.version }
   // 背景没到就出占位帧：首帧不等素材，但不能拿着 undefined 去量尺寸/贴图
-  if (!imgs.bgs || !imgs.bgs[withKey.key]) {
+  const backgroundReady = state.globalUltima ? imgs.bgUltimaGlobal : imgs.bgs?.[withKey.key]
+  if (!backgroundReady) {
     drawLoadingFrame(ctx)
     return
   }
