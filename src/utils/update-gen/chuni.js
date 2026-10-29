@@ -214,7 +214,7 @@ const CARD = {
 /** ULTiMA 卡：底图从官方 xversex 混排公告图抠出（ULTIMA 条与红线已 baked，经预加载后由 imgs 传入）。
  *  曲绘孔跟随专用底图，曲名/曲师则与普通卡共用同一组中心线，避免混排时上下错位。 */
 const CARD_ULTIMA = {
-  art: { x: 0.1324, y: 0.0768, w: 0.7576, h: 0.5798 },
+  art: { ...CARD.art },
   name: { centerline: 0.779, size: 0.0633, sizeSingle: 0.0723, pad: 0.11, weight: 900, lineHeight: 1.3, color: '#1a1a1a' },
   artist: { centerline: 0.906, size: 0.047, sizeSingle: 0.0542, pad: 0.15, weight: 600, maxLines: 2, lineHeight: 1.3, color: '#2a2a2a' }
 }
