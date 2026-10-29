@@ -60,7 +60,7 @@ import bgPrismplusUrl from '@/assets/update-gen/mai/bg-prismplus.png'
 import bgCircleUrl from '@/assets/update-gen/mai/bg-circle.png'
 import bgMagicalUrl from '@/assets/update-gen/mai/bg-magical.png'
 import bgBanquetUrl from '@/assets/update-gen/mai/bg-banquet-v2.png'
-import cardBanquetUrl from '@/assets/update-gen/mai/card-banquet-v2.png'
+import cardBanquetUrl from '@/assets/update-gen/mai/card-banquet-v3.png'
 import labelBanquetUrl from '@/assets/update-gen/mai/label-banquet-v2.png'
 import labelBanquetBuddyUrl from '@/assets/update-gen/mai/label-banquet-buddy-v2.png'
 import textureBanquetTitleUrl from '@/assets/update-gen/mai/texture-banquet-title-v2.svg'
@@ -2174,23 +2174,16 @@ function banquetPill(ctx, x, y, w, h, text, buddy, cn, bank) {
 }
 
 function banquetCard(ctx, song, r, cn, bank) {
-  // 素材主体 alpha 框为 (74,80)–(1094,1298)；外圈透明余量正好保留原版辉光/阴影。
-  if (bank.card) blit(ctx, bank.card, r.x - r.w * .073, r.y - r.h * .066, r.w * 1.145, r.h * 1.106)
-
-  // 曲绘略微伸进粉色分隔带下方，再由卡框覆盖，避免透明窗口下沿露出正文背景。
-  const art = { x: r.x + r.w * .07, y: r.y + r.h * .055, w: r.w * .86, h: r.h * .705 }
+  // 卡框直接从官方图按像素提取；曲绘窗为 472×472 的正方形。
+  const artSize = r.w * 472 / 549
+  const art = { x: r.x + r.w * 40 / 549 - 1, y: r.y + r.h * 35 / 704 - 1, w: artSize + 2, h: artSize + 2 }
   banquetCover(ctx, song, art.x, art.y, art.w, art.h)
-  // 再压一次主体框，确保曲绘不会盖住粉色内沿。
-  if (bank.card) {
-    const sx = bank.card.width * .0634, sy = bank.card.height * .0594
-    const sw = bank.card.width * .8733, sh = bank.card.height * .9042
-    ctx.drawImage(bank.card, sx, sy, sw, sh, r.x, r.y, r.w, r.h)
-  }
+  if (bank.card) blit(ctx, bank.card, r.x, r.y, r.w, r.h)
 
-  drawCardText(ctx, song.name || '', r.x + r.w / 2, r.y + r.h * .806, r.w, {
+  drawCardText(ctx, song.name || '', r.x + r.w / 2, r.y + r.h * .802, r.w, {
     sizeSingle: .066, size: .058, min: .038, tracking: 0, maxLines: 2, weight: 900, color: '#ffe600', family: FONT
   })
-  drawCardText(ctx, song.artist || '', r.x + r.w / 2, r.y + r.h * .913, r.w, {
+  drawCardText(ctx, song.artist || '', r.x + r.w / 2, r.y + r.h * .912, r.w, {
     sizeSingle: .052, size: .047, min: .032, tracking: 0, maxLines: 2, weight: 600, color: '#ffffff', family: FONT
   })
 
@@ -2206,7 +2199,7 @@ function banquetRects(count) {
     return Array.from({ length: n }, (_, i) => ({ x: (CANVAS_W - total) / 2 + i * (w + gap), y, w, h }))
   }
   if (count <= 2) {
-    const w = 510, h = 655, gap = 64, center = CANVAS_W / 2
+    const w = 510, h = w * 704 / 549, gap = 64, center = CANVAS_W / 2
     const total = count * w + (count - 1) * gap
     return Array.from({ length: count }, (_, i) => ({ x: center - total / 2 + i * (w + gap), y: 291, w, h }))
   }
