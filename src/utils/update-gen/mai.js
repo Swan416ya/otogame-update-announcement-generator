@@ -2205,7 +2205,7 @@ function banquetRects(count) {
     return Array.from({ length: n }, (_, i) => ({ x: (CANVAS_W - total) / 2 + i * (w + gap), y, w, h }))
   }
   if (count <= 2) {
-    const w = 510, h = 655, gap = 90, center = 1024
+    const w = 510, h = 655, gap = 90, center = CANVAS_W / 2
     const total = count * w + (count - 1) * gap
     return Array.from({ length: count }, (_, i) => ({ x: center - total / 2 + i * (w + gap), y: 325, w, h }))
   }
@@ -2229,25 +2229,56 @@ function renderMaiBanquet(ctx, state, imgs, ver) {
   // 标题采用宴谱公告固定的粉白渐变与深蓝/白双层描边。
   const title = String(state.title || '')
   let em = 92
-  ctx.font = `900 ${em}px ${FONT}`
-  while (em > 50 && ctx.measureText(title).width > 1050) { em -= 2; ctx.font = `900 ${em}px ${FONT}` }
-  let titleFill = '#E91F95'
-  if (bank.titleTexture) {
-    const layer = document.createElement('canvas')
-    layer.width = CANVAS_W
-    layer.height = 170
-    const layerCtx = layer.getContext('2d')
+  const titleFont = () => `900 ${em}px ${FONT}, 'UDShinGo SC', 'Noto Sans JP', 'Noto Sans SC', sans-serif`
+  ctx.font = titleFont()
+  while (em > 50 && ctx.measureText(title).width > 1050) {
+    em -= 2
+    ctx.font = titleFont()
+  }
+  const titleX = CANVAS_W / 2
+  const titleBaseline = 120
+  ctx.save()
+  ctx.font = titleFont()
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'alphabetic'
+  ctx.lineJoin = 'round'
+  ctx.miterLimit = 2
+  ctx.strokeStyle = 'rgba(30, 12, 67, .62)'
+  ctx.lineWidth = 32
+  ctx.strokeText(title, titleX, titleBaseline + 5)
+  ctx.fillStyle = 'rgba(30, 12, 67, .62)'
+  ctx.fillText(title, titleX, titleBaseline + 5)
+  ;[
+    { color: '#fffbe7', w: 28 },
+    { color: '#24155f', w: 18 },
+    { color: '#ffffff', w: 7 },
+    { color: '#f14aaf', w: 2.5 }
+  ].forEach((stroke) => {
+    ctx.strokeStyle = stroke.color
+    ctx.lineWidth = stroke.w
+    ctx.strokeText(title, titleX, titleBaseline)
+  })
+  // 字芯必须先落一层不透明底色；切换主题时纹理图片可能已建对象但尚未解码。
+  ctx.fillStyle = '#E91F95'
+  ctx.fillText(title, titleX, titleBaseline)
+  if (bank.titleTexture?.complete && bank.titleTexture.naturalWidth > 0) {
+    const fillLayer = document.createElement('canvas')
+    fillLayer.width = CANVAS_W
+    fillLayer.height = 170
+    const fillCtx = fillLayer.getContext('2d')
     const tileWidth = 340
     for (let x = 0; x < CANVAS_W; x += tileWidth) {
-      layerCtx.drawImage(bank.titleTexture, x, 0, tileWidth, 170)
+      fillCtx.drawImage(bank.titleTexture, x, 0, tileWidth, 170)
     }
-    titleFill = ctx.createPattern(layer, 'no-repeat') || titleFill
+    fillCtx.globalCompositeOperation = 'destination-in'
+    fillCtx.font = titleFont()
+    fillCtx.textAlign = 'center'
+    fillCtx.textBaseline = 'alphabetic'
+    fillCtx.fillStyle = '#ffffff'
+    fillCtx.fillText(title, titleX, titleBaseline)
+    ctx.drawImage(fillLayer, 0, 0)
   }
-  drawTracked(ctx, title, CANVAS_W / 2, 120 + 5, em, 900, FONT, 0,
-    'rgba(30, 12, 67, .62)', [{ color: 'rgba(30, 12, 67, .62)', w: 32 }], 1)
-  drawTracked(ctx, title, CANVAS_W / 2, 120, em, 900, FONT, 0, titleFill, [
-    { color: '#fffbe7', w: 28 }, { color: '#24155f', w: 18 }, { color: '#ffffff', w: 7 }, { color: '#f14aaf', w: 2.5 }
-  ], 1)
+  ctx.restore()
 
   const logo = cn ? imgs[ver.cnLogoKey || 'maiCnLogo'] : imgs.logosMai?.[state.version]
   if (logo) {
