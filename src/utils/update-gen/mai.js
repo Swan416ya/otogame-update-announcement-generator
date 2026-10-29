@@ -536,6 +536,12 @@ export const MAI_VERSIONS = {
   magical:      { label: 'maimaiでらっくす MAGiCAL',       family: 'magical', logo: logoMagical, tint: ['#d19eff', '#9effd1'] }
 }
 
+/** BUDDiES 以后使用同一套宴会场公告版式，仅替换左上角版本 Logo。 */
+const MAI_BANQUET_VERSIONS = new Set(['buddies', 'buddiesplus', 'prism', 'prismplus', 'circle', 'circleplus', 'magical'])
+export function supportsMaiBanquet(version) {
+  return MAI_BANQUET_VERSIONS.has(version)
+}
+
 /* ================= 主题级素材清单（按需加载） =================
  * 视图切到某个舞萌主题（或改 UI 开关）时只取这一份清单去懒加载：chuni 全套 21MB、mai 全套 69MB，
  * 一次性预载首屏扛不住。已加载的图片由调用方永久缓存，切主题只补新增项；同一 URL 在多个版本
@@ -601,6 +607,19 @@ export function maiThemeAssets(version, ui = {}) {
     for (const cardKey of MAI_MAGICAL_CARD_KEYS) add(MAI_MAGICAL_CARD_URLS[cardKey], ['maiMagicalCards', cardKey])
   }
   const addSega = () => add(MAI_ASSET_URLS.sega, ['maiSega'])
+
+  // 宴会场是跨版本共用的程序化版式，不依赖普通主题的背景/卡框；这里只加载当前 Logo 与 SEGA。
+  if (opts.banquetMode && supportsMaiBanquet(key)) {
+    const useCn = !!(ver.cnLogo && opts.useCnLogo)
+    if (useCn) {
+      const cnKey = ver.cnLogoKey || 'maiCnLogo'
+      add(MAI_CN_LOGO_BY_KEY[cnKey], [cnKey])
+    } else {
+      add(ver.logo, ['logosMai', key])
+    }
+    addSega()
+    return { primary: useCn ? MAI_CN_LOGO_BY_KEY[ver.cnLogoKey || 'maiCnLogo'] : ver.logo, entries }
+  }
 
   // ---- 早期 dx 家族（deradx）：程序化卡片 + 版本背景/logo/SEGA ----
   if (ver.family === 'earlyDx') {
@@ -2098,6 +2117,245 @@ function drawMaiCredit(ctx, credit) {
   ctx.restore()
 }
 
+function banquetCover(ctx, song, x, y, w, h) {
+  ctx.save()
+  ctx.beginPath()
+  ctx.rect(x, y, w, h)
+  ctx.clip()
+  if (song.artImg && song.artImg.width > 1) {
+    const image = song.artImg
+    const scale = Math.max(w / image.width, h / image.height)
+    const dw = image.width * scale
+    const dh = image.height * scale
+    blit(ctx, image, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh)
+  } else {
+    const g = ctx.createLinearGradient(x, y, x + w, y + h)
+    g.addColorStop(0, '#182f50')
+    g.addColorStop(1, '#0a132b')
+    ctx.fillStyle = g
+    ctx.fillRect(x, y, w, h)
+  }
+  ctx.restore()
+}
+
+function banquetPill(ctx, x, y, w, h, text, buddy, cn) {
+  const radius = h / 2
+  ctx.save()
+  ctx.shadowColor = 'rgba(0,0,0,.38)'
+  ctx.shadowBlur = 8
+  ctx.shadowOffsetY = 4
+  const g = ctx.createLinearGradient(0, y, 0, y + h)
+  g.addColorStop(0, '#0a315c')
+  g.addColorStop(.5, '#063a70')
+  g.addColorStop(1, '#08254b')
+  ctx.fillStyle = g
+  ctx.strokeStyle = '#77e8ff'
+  ctx.lineWidth = Math.max(3, h * .065)
+  ctx.beginPath()
+  ctx.roundRect(x, y, w, h, radius)
+  ctx.fill()
+  ctx.stroke()
+  ctx.restore()
+  ctx.save()
+  ctx.strokeStyle = 'rgba(255,255,255,.38)'
+  ctx.lineWidth = Math.max(1, h * .025)
+  ctx.beginPath()
+  ctx.roundRect(x + 7, y + 7, w - 14, h - 14, radius - 7)
+  ctx.stroke()
+  ctx.font = `900 ${h * .53}px ${FONT}`
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillStyle = '#fff'
+  ctx.fillText(String(text || '').slice(0, 1), x + w / 2, y + h * .52)
+  ctx.restore()
+  if (!buddy) return
+
+  const bw = w * .82
+  const bx = x + w - 8
+  ctx.save()
+  const bg = ctx.createLinearGradient(0, y, 0, y + h)
+  bg.addColorStop(0, '#64100c')
+  bg.addColorStop(1, '#2a0809')
+  ctx.fillStyle = bg
+  ctx.strokeStyle = '#ffe571'
+  ctx.lineWidth = Math.max(3, h * .055)
+  ctx.beginPath()
+  ctx.roundRect(bx, y, bw, h, [0, radius, radius, 0])
+  ctx.fill()
+  ctx.stroke()
+  ctx.font = `900 ${h * .39}px ${FONT}`
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillStyle = '#fff'
+  ctx.fillText(`🤝${cn ? '伙伴' : 'バディ'}`, bx + bw * .5, y + h * .52)
+  ctx.restore()
+}
+
+function banquetCard(ctx, song, r, cn) {
+  const s = r.w / 540
+  const radius = 16 * s
+  ctx.save()
+  ctx.shadowColor = 'rgba(0,0,0,.42)'
+  ctx.shadowBlur = 14 * s
+  ctx.shadowOffsetY = 8 * s
+  ctx.fillStyle = '#fff'
+  ctx.beginPath()
+  ctx.roundRect(r.x - 6 * s, r.y - 6 * s, r.w + 12 * s, r.h + 12 * s, radius)
+  ctx.fill()
+  ctx.restore()
+
+  const frame = ctx.createLinearGradient(r.x, r.y, r.x + r.w, r.y + r.h)
+  frame.addColorStop(0, '#ff64d2')
+  frame.addColorStop(.45, '#ed29a3')
+  frame.addColorStop(1, '#ff90dc')
+  ctx.fillStyle = frame
+  ctx.beginPath()
+  ctx.roundRect(r.x, r.y, r.w, r.h, radius)
+  ctx.fill()
+  ctx.strokeStyle = '#ffb9ed'
+  ctx.lineWidth = 5 * s
+  ctx.stroke()
+
+  // 宴会场固定粉色框的像素/斜切高光。
+  ctx.save()
+  ctx.globalAlpha = .42
+  ctx.fillStyle = '#fff'
+  for (let i = 0; i < 4; i++) ctx.fillRect(r.x + (34 + i * 18) * s, r.y + 12 * s, 12 * s, 8 * s)
+  ctx.beginPath()
+  ctx.moveTo(r.x + r.w - 57 * s, r.y + 11 * s)
+  ctx.lineTo(r.x + r.w - 13 * s, r.y + 11 * s)
+  ctx.lineTo(r.x + r.w - 13 * s, r.y + 54 * s)
+  ctx.closePath()
+  ctx.fill()
+  ctx.restore()
+
+  const pad = 30 * s
+  const art = { x: r.x + pad, y: r.y + 34 * s, w: r.w - pad * 2, h: r.w - pad * 2 }
+  banquetCover(ctx, song, art.x, art.y, art.w, art.h)
+  ctx.strokeStyle = '#b51d78'
+  ctx.lineWidth = 3 * s
+  ctx.strokeRect(art.x, art.y, art.w, art.h)
+
+  const nameY = art.y + art.h + 16 * s
+  const nameH = 82 * s
+  const artistH = 72 * s
+  ctx.fillStyle = '#164b91'
+  ctx.fillRect(r.x + 15 * s, nameY, r.w - 30 * s, nameH)
+  ctx.fillStyle = '#123664'
+  ctx.fillRect(r.x + 15 * s, nameY + nameH, r.w - 30 * s, artistH)
+  drawCardText(ctx, song.name || '', r.x + r.w / 2, nameY + nameH * .52, r.w - 36 * s, {
+    sizeSingle: .066, size: .058, min: .038, tracking: 0, maxLines: 2, weight: 900, color: '#ffe600', family: FONT
+  })
+  drawCardText(ctx, song.artist || '', r.x + r.w / 2, nameY + nameH + artistH * .53, r.w - 42 * s, {
+    sizeSingle: .052, size: .047, min: .032, tracking: 0, maxLines: 2, weight: 600, color: '#ffffff', family: FONT
+  })
+
+  const pillW = Math.min(r.w * .58, 296 * s)
+  banquetPill(ctx, r.x, r.y - 75 * s, pillW, 67 * s, song.banquetLabel, !!song.banquetBuddy, cn)
+}
+
+function banquetRects(count) {
+  if (!count) return []
+  const makeRow = (n, y, w, h, gap) => {
+    const total = n * w + (n - 1) * gap
+    return Array.from({ length: n }, (_, i) => ({ x: (CANVAS_W - total) / 2 + i * (w + gap), y, w, h }))
+  }
+  if (count <= 2) return makeRow(count, 310, 540, 700, 72)
+  if (count === 3) return makeRow(3, 350, 430, 557, 54)
+  if (count === 4) return makeRow(4, 370, 350, 454, 42)
+  if (count === 5) return makeRow(5, 390, 300, 389, 34)
+  const top = Math.ceil(count / 2)
+  const bottom = count - top
+  const w = 270
+  const h = w * 700 / 540
+  const gap = count >= 9 ? 28 : 38
+  return [...makeRow(top, 270, w, h, gap), ...makeRow(bottom, 650, w, h, gap)]
+}
+
+function renderMaiBanquet(ctx, state, imgs, ver) {
+  const cn = !!(ver.cnLogo && state.useCnLogo)
+  ctx.clearRect(0, 0, CANVAS_W, CANVAS_H)
+  // 顶栏：宴会场各代共用洋红色舞台，只替换左上版本 Logo。
+  const hg = ctx.createLinearGradient(0, 0, CANVAS_W, 170)
+  hg.addColorStop(0, '#d61a9d')
+  hg.addColorStop(.55, '#f027b0')
+  hg.addColorStop(1, '#cf178e')
+  ctx.fillStyle = hg
+  ctx.fillRect(0, 0, CANVAS_W, 170)
+  ctx.globalAlpha = .18
+  ctx.fillStyle = '#fff'
+  for (let x = 35; x < CANVAS_W; x += 72) for (let y = 20; y < 150; y += 44) ctx.fillRect(x, y, 14, 14)
+  ctx.globalAlpha = 1
+  ctx.fillStyle = '#2d2968'
+  ctx.beginPath()
+  ctx.arc(960, 145, 125, 0, Math.PI)
+  ctx.fill()
+  ctx.strokeStyle = 'rgba(120,215,255,.35)'
+  ctx.lineWidth = 2
+  for (let r = 65; r <= 120; r += 12) { ctx.beginPath(); ctx.arc(960, 145, r, 0, Math.PI); ctx.stroke() }
+
+  // 主舞台与两侧灯泡边框。
+  ctx.fillStyle = '#052d49'
+  ctx.fillRect(0, 170, CANVAS_W, 848)
+  ctx.fillStyle = '#0a3b5d'
+  for (let y = 185; y < 1018; y += 45) for (let x = 45 + ((y / 45) % 2) * 22; x < 1880; x += 45) {
+    ctx.beginPath(); ctx.arc(x, y, 20, 0, Math.PI * 2); ctx.fill()
+  }
+  for (const x of [7, 1885]) {
+    ctx.fillStyle = '#b92b7d'; ctx.fillRect(x, 170, 28, 848)
+    ctx.fillStyle = '#ffabd9'
+    for (let y = 190; y < 1010; y += 54) { ctx.beginPath(); ctx.arc(x + 14, y, 8, 0, Math.PI * 2); ctx.fill() }
+  }
+
+  // 标题采用宴谱公告固定的粉白渐变与深蓝/白双层描边。
+  const title = String(state.title || '')
+  let em = 94
+  ctx.font = `900 ${em}px ${FONT}`
+  while (em > 54 && ctx.measureText(title).width > 1160) { em -= 2; ctx.font = `900 ${em}px ${FONT}` }
+  const tg = (baseline) => {
+    const g = ctx.createLinearGradient(0, baseline - em, 0, baseline)
+    g.addColorStop(0, '#fff4fb'); g.addColorStop(.42, '#ff5abc'); g.addColorStop(1, '#e80082')
+    return g
+  }
+  drawTracked(ctx, title, 1010, 130, em, 900, FONT, 0, tg, [
+    { color: '#fffde9', w: 28 }, { color: '#24155f', w: 15 }, { color: '#ff87cb', w: 5 }
+  ], 1)
+
+  const logo = cn ? imgs[ver.cnLogoKey || 'maiCnLogo'] : imgs.logosMai?.[state.version]
+  if (logo) {
+    const maxW = cn ? 230 : 300
+    const maxH = 145
+    const scale = Math.min(maxW / logo.width, maxH / logo.height)
+    blit(ctx, logo, 18, 10, logo.width * scale, logo.height * scale)
+  }
+  if (imgs.maiSega) blitFit(ctx, imgs.maiSega, 1745, 14, 155, 58)
+
+  const songs = state.songs || []
+  const rects = banquetRects(songs.length)
+  songs.forEach((song, i) => rects[i] && banquetCard(ctx, song, rects[i], cn))
+
+  // 国服与日服的说明文字、版权位置分别按原图处理。
+  ctx.fillStyle = '#0960c7'
+  ctx.fillRect(0, 1018, CANVAS_W, 62)
+  ctx.fillStyle = '#fff'
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.font = `600 ${cn ? 16 : 18}px ${FONT}`
+  const footer = cn
+    ? ['※「宴会场」的游戏成绩将不会影响DX RATING和总分数。玩家的总DX RATING要超过10000或以上才能开放「宴会场」类别。', '※在「宴会场」类别中将不能使用店内联机进行游戏。']
+    : ['※「宴会場」でのプレイ結果は、でらっくすRATINGやトータルスコアに影響しません。 ※「宴会場」カテゴリの解放には、プレイヤーの合計でらっくすRATINGが10000以上に達している必要があります。', '※「宴会場」カテゴリでは、店内マッチングは行えません。']
+  ctx.fillText(footer[0], CANVAS_W / 2, 1037)
+  ctx.fillText(footer[1], CANVAS_W / 2, 1064)
+  const credit = String(state.credit || '').trim()
+  if (credit) {
+    ctx.textAlign = 'right'
+    ctx.textBaseline = 'alphabetic'
+    ctx.font = `500 13px ${FONT}`
+    ctx.fillText(credit.replace(/\n/g, '  '), cn ? 1890 : 1880, 1010)
+  }
+}
+
+
 /* ================= 主渲染 ================= */
 /** 当前版本的主背景是否已就位（舞萌素材按需加载，首帧可能先于图片到达） */
 function maiBgReady(ver, fam, imgs) {
@@ -2117,6 +2375,10 @@ function maiBgReady(ver, fam, imgs) {
 export function renderMai(ctx, state, imgs) {
   const ver = MAI_VERSIONS[state.version] || MAI_VERSIONS.festival
   const fam = FAMILIES[ver.family]
+  if (state.banquetMode && supportsMaiBanquet(state.version)) {
+    renderMaiBanquet(ctx, state, imgs, ver)
+    return
+  }
   // 主背景没到就出占位帧：首帧不等素材，但不能拿着 undefined 去量尺寸/贴图
   if (!maiBgReady(ver, fam, imgs)) {
     drawLoadingFrame(ctx)

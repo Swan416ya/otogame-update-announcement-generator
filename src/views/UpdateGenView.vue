@@ -58,6 +58,14 @@
           </label>
         </section>
 
+        <section v-if="supportsMaiBanquet" class="ug-group">
+          <label class="ug-check ug-check--banquet">
+            <input v-model="banquetMode" type="checkbox" />
+            宴谱追加模式
+          </label>
+          <p class="ug-hint">启用后使用宴会场专用背景和固定粉色卡框；每张卡片可填写一个单字标签，并单独开启伙伴标签。</p>
+        </section>
+
         <!-- Splash 两种官方公告背景：黄色热带款 / 米白竖条纹款。 -->
         <section v-if="game === 'mai' && version === 'splash'" class="ug-group">
           <label class="ug-check">
@@ -119,7 +127,7 @@
                   <input ref="fileInputs" type="file" accept="image/*" hidden @change="onFile(s, $event)" />
                 </div>
               </div>
-              <div v-if="game === 'mai'" class="ug-song__colors">
+              <div v-if="game === 'mai' && !banquetMode" class="ug-song__colors">
                 <button
                   v-for="p in maiPalette"
                   :key="p.idx"
@@ -130,6 +138,16 @@
                   @click="s.frameIndex = s.frameIndex === p.idx ? null : p.idx"
                 />
               </div>
+              <div v-if="game === 'mai' && banquetMode" class="ug-song__banquet">
+                <label>
+                  宴谱单字
+                  <input v-model="s.banquetLabel" type="text" maxlength="1" placeholder="例：宴" />
+                </label>
+                <label class="ug-check">
+                  <input v-model="s.banquetBuddy" type="checkbox" />
+                  显示{{ useCnLogo ? '伙伴' : 'バディ' }}标签
+                </label>
+              </div>
               <textarea v-model="s.name" class="ug-song__text" rows="1" placeholder="曲名（回车换行）" @input="autoGrow"></textarea>
               <textarea v-model="s.artist" class="ug-song__text" rows="1" placeholder="作曲 / 艺术家（最多2行）" @input="autoGrow"></textarea>
             </div>
@@ -138,7 +156,7 @@
         </section>
 
         <!-- 徽章开关（舞萌：≥5 首的版式官方一律不带；1–4 首可手动关掉） -->
-        <section v-if="game === 'mai' && version !== 'splashplus' && version !== 'universe' && !(version === 'festival' && festivalLogoVariant === 'cn2023')" class="ug-group">
+        <section v-if="game === 'mai' && !banquetMode && version !== 'splashplus' && version !== 'universe' && !(version === 'festival' && festivalLogoVariant === 'cn2023')" class="ug-group">
           <label class="ug-check">
             <input type="checkbox" v-model="showBadge" :disabled="songs.length >= 5" />
             显示官方徽章（NEW! すぐに遊べる新曲！ / N曲まとめて）
@@ -244,6 +262,7 @@ const dxLogoVariant = ref('jp')
 const festivalLogoVariant = ref('jp')
 const universeLogoVariant = ref('base')
 const globalUltima = ref(false)
+const banquetMode = ref(false)
 const status = ref('')
 const statusType = ref('')
 const canvasRef = ref(null)
@@ -289,6 +308,7 @@ const versionList = computed(() => {
   return out
 })
 const supportsGlobalUltima = computed(() => game.value === 'chuni' && supportsChuniGlobalUltima(version.value))
+const supportsMaiBanquet = computed(() => game.value === 'mai' && !!maiModule.value?.supportsMaiBanquet(version.value))
 const chuniCnLogoLabel = computed(() => game.value === 'chuni' ? (CHUNI_VERSIONS[version.value]?.cnLabel || '') : '')
 /** 影响舞萌素材清单的 UI 开关（切开关时会补对应的 logo） */
 const maiUi = computed(() => ({
@@ -296,7 +316,8 @@ const maiUi = computed(() => ({
   dxLogoVariant: dxLogoVariant.value,
   festivalLogoVariant: festivalLogoVariant.value,
   universeLogoVariant: universeLogoVariant.value,
-  splashAltBg: splashAltBg.value
+  splashAltBg: splashAltBg.value,
+  banquetMode: banquetMode.value
 }))
 /** 当前主题需要哪些素材（由渲染器自己声明，见 chuni.js / mai.js） */
 const themeAssets = computed(() => {
@@ -342,6 +363,9 @@ watch(game, async (g) => {
 watch(supportsGlobalUltima, (supported) => {
   if (!supported) globalUltima.value = false
 })
+watch(supportsMaiBanquet, (supported) => {
+  if (!supported) banquetMode.value = false
+})
 watch(chuniCnLogoLabel, (label) => {
   if (game.value === 'chuni' && !label) useCnLogo.value = false
 })
@@ -351,7 +375,7 @@ watch(globalUltima, (enabled) => {
 
 function addSong() {
   if (songs.length >= songLimit.value) return
-  songs.push({ id: ++songSeq, name: '', artist: '', art: '', artUrlRaw: '', ultima: globalUltima.value, frameIndex: null })
+  songs.push({ id: ++songSeq, name: '', artist: '', art: '', artUrlRaw: '', ultima: globalUltima.value, frameIndex: null, banquetLabel: '', banquetBuddy: false })
 }
 function removeSong(id) {
   const i = songs.findIndex((s) => s.id === id)
@@ -485,7 +509,7 @@ function scheduleRender() {
 }
 
 function collectText() {
-  return [title.value, credit.value, ...songs.map((s) => `${s.name}\n${s.artist}`)].join('\n')
+  return [title.value, credit.value, ...songs.map((s) => `${s.name}\n${s.artist}\n${s.banquetLabel || ''}`)].join('\n')
 }
 
 /** 按当前游戏/版本画到指定画布；预览与导出共用同一段逻辑，保证两边素材一致 */
@@ -496,7 +520,7 @@ function paintTo(ctx) {
   }
   const mod = maiModule.value
   if (!mod) return false
-  mod.renderMai(ctx, { version: version.value, title: title.value, songs, credit: credit.value, useCnLogo: useCnLogo.value, showBadge: showBadge.value, dxLogoVariant: dxLogoVariant.value, festivalLogoVariant: festivalLogoVariant.value, universeLogoVariant: universeLogoVariant.value, splashAltBg: splashAltBg.value }, imgs)
+  mod.renderMai(ctx, { version: version.value, title: title.value, songs, credit: credit.value, useCnLogo: useCnLogo.value, showBadge: showBadge.value, dxLogoVariant: dxLogoVariant.value, festivalLogoVariant: festivalLogoVariant.value, universeLogoVariant: universeLogoVariant.value, splashAltBg: splashAltBg.value, banquetMode: banquetMode.value }, imgs)
   return true
 }
 
@@ -554,8 +578,8 @@ async function render() {
 }
 
 /* 版本/开关变化：先补该主题素材（切换主题才下载新图）；内容变化只触发重绘 */
-watch([version, globalUltima, useCnLogo, dxLogoVariant, festivalLogoVariant, universeLogoVariant, splashAltBg], () => ensureCurrentTheme())
-watch([version, title, credit, songs, globalUltima, useCnLogo, showBadge, dxLogoVariant, festivalLogoVariant, universeLogoVariant, splashAltBg], scheduleRender, { deep: true })
+watch([version, globalUltima, banquetMode, useCnLogo, dxLogoVariant, festivalLogoVariant, universeLogoVariant, splashAltBg], () => ensureCurrentTheme())
+watch([version, title, credit, songs, globalUltima, banquetMode, useCnLogo, showBadge, dxLogoVariant, festivalLogoVariant, universeLogoVariant, splashAltBg], scheduleRender, { deep: true })
 
 /* ---------- 导出 ---------- */
 async function exportCanvas() {
@@ -736,6 +760,11 @@ onBeforeUnmount(() => {
   font-weight: 700;
 }
 .ug-check--ultima input { accent-color: #ff315f; }
+.ug-check--banquet {
+  color: #ff7dce;
+  font-weight: 700;
+}
+.ug-check--banquet input { accent-color: #ec2aa7; }
 .ug-hint {
   margin: 7px 0 0 24px;
   color: rgba(232, 234, 246, 0.48);
@@ -777,6 +806,17 @@ input[type='url'] {
   font-family: inherit;
   box-sizing: border-box;
 }
+.ug-song__banquet input[type='text'] {
+  width: 58px;
+  padding: 6px 8px;
+  background: #232739;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  color: #fff;
+  font: inherit;
+  text-align: center;
+  box-sizing: border-box;
+}
 select option {
   background: #232739;
   color: #e8eaf6;
@@ -805,6 +845,23 @@ select:focus, textarea:focus, input:focus { outline: none; border-color: #7b5cff
   user-select: none;
 }
 .ug-song__ultima.on { color: #ffd84d; }
+.ug-song__banquet {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 7px 0;
+  padding: 8px;
+  border-radius: 6px;
+  background: rgba(236, 42, 167, 0.08);
+}
+.ug-song__banquet > label:first-child {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: rgba(232, 234, 246, 0.7);
+  font-size: 12px;
+}
 .ug-song__ultima input { accent-color: #ffd84d; margin: 0; }
 .ug-song__del {
   margin-left: auto;
