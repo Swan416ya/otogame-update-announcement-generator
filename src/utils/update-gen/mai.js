@@ -63,6 +63,7 @@ import bgBanquetUrl from '@/assets/update-gen/mai/bg-banquet-v2.png'
 import cardBanquetUrl from '@/assets/update-gen/mai/card-banquet-v2.png'
 import labelBanquetUrl from '@/assets/update-gen/mai/label-banquet-v2.png'
 import labelBanquetBuddyUrl from '@/assets/update-gen/mai/label-banquet-buddy-v2.png'
+import textureBanquetTitleUrl from '@/assets/update-gen/mai/texture-banquet-title-v1.png'
 import headerMagicalUrl from '@/assets/update-gen/mai/header-magical.png'
 import bgCircleplusUrl from '@/assets/update-gen/mai/bg-circleplus.png'
 import headerCircleplusUrl from '@/assets/update-gen/mai/header-circleplus.png'
@@ -126,7 +127,7 @@ export const MAI_MAGICAL_CARD_URLS = {
   cardRed: cardMagicalRedUrl
 }
 export const MAI_MAGICAL_CARD_KEYS = ['cardGreen', 'cardTeal', 'cardOrange', 'cardPurple', 'cardBlue', 'cardRed']
-export const MAI_BANQUET_URLS = { bg: bgBanquetUrl, card: cardBanquetUrl, label: labelBanquetUrl, buddy: labelBanquetBuddyUrl }
+export const MAI_BANQUET_URLS = { bg: bgBanquetUrl, card: cardBanquetUrl, label: labelBanquetUrl, buddy: labelBanquetBuddyUrl, titleTexture: textureBanquetTitleUrl }
 
 /** 卡片模板对应的流派框色（festival.png 实测）；UI 色板按家族给模板索引 */
 export const MAI_CARD_COLORS = ['#f5761e', '#f5761e', '#f5761e', '#12b8c8', '#12b8c8', '#12b8c8', '#12b8c8', '#12b8c8', '#a64ce0', '#5ad67e']
@@ -619,6 +620,7 @@ export function maiThemeAssets(version, ui = {}) {
     add(MAI_BANQUET_URLS.card, ['maiBanquet', 'card'])
     add(MAI_BANQUET_URLS.label, ['maiBanquet', 'label'])
     add(MAI_BANQUET_URLS.buddy, ['maiBanquet', 'buddy'])
+    add(MAI_BANQUET_URLS.titleTexture, ['maiBanquet', 'titleTexture'])
     const useCn = !!(ver.cnLogo && opts.useCnLogo)
     if (useCn) {
       const cnKey = ver.cnLogoKey || 'maiCnLogo'
@@ -2184,10 +2186,10 @@ function banquetCard(ctx, song, r, cn, bank) {
     ctx.drawImage(bank.card, sx, sy, sw, sh, r.x, r.y, r.w, r.h)
   }
 
-  drawCardText(ctx, song.name || '', r.x + r.w / 2, r.y + r.h * .81, r.w * .86, {
+  drawCardText(ctx, song.name || '', r.x + r.w / 2, r.y + r.h * .833, r.w, {
     sizeSingle: .066, size: .058, min: .038, tracking: 0, maxLines: 2, weight: 900, color: '#ffe600', family: FONT
   })
-  drawCardText(ctx, song.artist || '', r.x + r.w / 2, r.y + r.h * .91, r.w * .86, {
+  drawCardText(ctx, song.artist || '', r.x + r.w / 2, r.y + r.h * .923, r.w, {
     sizeSingle: .052, size: .047, min: .032, tracking: 0, maxLines: 2, weight: 600, color: '#ffffff', family: FONT
   })
 
@@ -2203,9 +2205,9 @@ function banquetRects(count) {
     return Array.from({ length: n }, (_, i) => ({ x: (CANVAS_W - total) / 2 + i * (w + gap), y, w, h }))
   }
   if (count <= 2) {
-    const w = 545, h = 700, gap = 66, center = 1024
+    const w = 510, h = 655, gap = 90, center = 1024
     const total = count * w + (count - 1) * gap
-    return Array.from({ length: count }, (_, i) => ({ x: center - total / 2 + i * (w + gap), y: 310, w, h }))
+    return Array.from({ length: count }, (_, i) => ({ x: center - total / 2 + i * (w + gap), y: 325, w, h }))
   }
   if (count === 3) return makeRow(3, 350, 430, 557, 54)
   if (count === 4) return makeRow(4, 370, 350, 454, 42)
@@ -2226,16 +2228,25 @@ function renderMaiBanquet(ctx, state, imgs, ver) {
 
   // 标题采用宴谱公告固定的粉白渐变与深蓝/白双层描边。
   const title = String(state.title || '')
-  let em = 94
+  let em = 92
   ctx.font = `900 ${em}px ${FONT}`
-  while (em > 54 && ctx.measureText(title).width > 1160) { em -= 2; ctx.font = `900 ${em}px ${FONT}` }
-  const tg = (baseline) => {
-    const g = ctx.createLinearGradient(0, baseline - em, 0, baseline)
-    g.addColorStop(0, '#fff4fb'); g.addColorStop(.42, '#ff5abc'); g.addColorStop(1, '#e80082')
-    return g
+  while (em > 50 && ctx.measureText(title).width > 1050) { em -= 2; ctx.font = `900 ${em}px ${FONT}` }
+  let titleFill = '#f223a9'
+  if (bank.titleTexture) {
+    const layer = document.createElement('canvas')
+    layer.width = CANVAS_W
+    layer.height = 170
+    layer.getContext('2d').drawImage(
+      bank.titleTexture,
+      0, bank.titleTexture.height * .11, bank.titleTexture.width, bank.titleTexture.height * .78,
+      0, 0, CANVAS_W, 170
+    )
+    titleFill = ctx.createPattern(layer, 'no-repeat') || titleFill
   }
-  drawTracked(ctx, title, 1080, 130, em, 900, FONT, 0, tg, [
-    { color: '#fffde9', w: 28 }, { color: '#24155f', w: 15 }, { color: '#ff87cb', w: 5 }
+  drawTracked(ctx, title, 1070, 120 + 5, em, 900, FONT, 0,
+    'rgba(30, 12, 67, .62)', [{ color: 'rgba(30, 12, 67, .62)', w: 32 }], 1)
+  drawTracked(ctx, title, 1070, 120, em, 900, FONT, 0, titleFill, [
+    { color: '#fffbe7', w: 28 }, { color: '#24155f', w: 18 }, { color: '#ffffff', w: 7 }, { color: '#f14aaf', w: 2.5 }
   ], 1)
 
   const logo = cn ? imgs[ver.cnLogoKey || 'maiCnLogo'] : imgs.logosMai?.[state.version]
