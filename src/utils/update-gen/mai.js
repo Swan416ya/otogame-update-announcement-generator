@@ -59,6 +59,10 @@ import bgPrismUrl from '@/assets/update-gen/mai/bg-prism.png'
 import bgPrismplusUrl from '@/assets/update-gen/mai/bg-prismplus.png'
 import bgCircleUrl from '@/assets/update-gen/mai/bg-circle.png'
 import bgMagicalUrl from '@/assets/update-gen/mai/bg-magical.png'
+import bgBanquetUrl from '@/assets/update-gen/mai/bg-banquet-v2.png'
+import cardBanquetUrl from '@/assets/update-gen/mai/card-banquet-v2.png'
+import labelBanquetUrl from '@/assets/update-gen/mai/label-banquet-v2.png'
+import labelBanquetBuddyUrl from '@/assets/update-gen/mai/label-banquet-buddy-v2.png'
 import headerMagicalUrl from '@/assets/update-gen/mai/header-magical.png'
 import bgCircleplusUrl from '@/assets/update-gen/mai/bg-circleplus.png'
 import headerCircleplusUrl from '@/assets/update-gen/mai/header-circleplus.png'
@@ -122,6 +126,7 @@ export const MAI_MAGICAL_CARD_URLS = {
   cardRed: cardMagicalRedUrl
 }
 export const MAI_MAGICAL_CARD_KEYS = ['cardGreen', 'cardTeal', 'cardOrange', 'cardPurple', 'cardBlue', 'cardRed']
+export const MAI_BANQUET_URLS = { bg: bgBanquetUrl, card: cardBanquetUrl, label: labelBanquetUrl, buddy: labelBanquetBuddyUrl }
 
 /** 卡片模板对应的流派框色（festival.png 实测）；UI 色板按家族给模板索引 */
 export const MAI_CARD_COLORS = ['#f5761e', '#f5761e', '#f5761e', '#12b8c8', '#12b8c8', '#12b8c8', '#12b8c8', '#12b8c8', '#a64ce0', '#5ad67e']
@@ -610,6 +615,10 @@ export function maiThemeAssets(version, ui = {}) {
 
   // 宴会场是跨版本共用的程序化版式，不依赖普通主题的背景/卡框；这里只加载当前 Logo 与 SEGA。
   if (opts.banquetMode && supportsMaiBanquet(key)) {
+    add(MAI_BANQUET_URLS.bg, ['maiBanquet', 'bg'])
+    add(MAI_BANQUET_URLS.card, ['maiBanquet', 'card'])
+    add(MAI_BANQUET_URLS.label, ['maiBanquet', 'label'])
+    add(MAI_BANQUET_URLS.buddy, ['maiBanquet', 'buddy'])
     const useCn = !!(ver.cnLogo && opts.useCnLogo)
     if (useCn) {
       const cnKey = ver.cnLogoKey || 'maiCnLogo'
@@ -618,7 +627,7 @@ export function maiThemeAssets(version, ui = {}) {
       add(ver.logo, ['logosMai', key])
     }
     addSega()
-    return { primary: useCn ? MAI_CN_LOGO_BY_KEY[ver.cnLogoKey || 'maiCnLogo'] : ver.logo, entries }
+    return { primary: MAI_BANQUET_URLS.bg, entries }
   }
 
   // ---- 早期 dx 家族（deradx）：程序化卡片 + 版本背景/logo/SEGA ----
@@ -2138,31 +2147,11 @@ function banquetCover(ctx, song, x, y, w, h) {
   ctx.restore()
 }
 
-function banquetPill(ctx, x, y, w, h, text, buddy, cn) {
-  const radius = h / 2
+function banquetPill(ctx, x, y, w, h, text, buddy, cn, bank) {
+  // 提取素材带原版外发光；按不透明主体框反推整张素材的绘制框，主体即可精准落在 x/y/w/h。
+  if (bank.label) blit(ctx, bank.label, x - w * .0395, y - h * .212, w * 1.079, h * 1.438)
   ctx.save()
-  ctx.shadowColor = 'rgba(0,0,0,.38)'
-  ctx.shadowBlur = 8
-  ctx.shadowOffsetY = 4
-  const g = ctx.createLinearGradient(0, y, 0, y + h)
-  g.addColorStop(0, '#0a315c')
-  g.addColorStop(.5, '#063a70')
-  g.addColorStop(1, '#08254b')
-  ctx.fillStyle = g
-  ctx.strokeStyle = '#77e8ff'
-  ctx.lineWidth = Math.max(3, h * .065)
-  ctx.beginPath()
-  ctx.roundRect(x, y, w, h, radius)
-  ctx.fill()
-  ctx.stroke()
-  ctx.restore()
-  ctx.save()
-  ctx.strokeStyle = 'rgba(255,255,255,.38)'
-  ctx.lineWidth = Math.max(1, h * .025)
-  ctx.beginPath()
-  ctx.roundRect(x + 7, y + 7, w - 14, h - 14, radius - 7)
-  ctx.stroke()
-  ctx.font = `900 ${h * .53}px ${FONT}`
+  ctx.font = `900 ${h * .5}px ${FONT}`
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
   ctx.fillStyle = '#fff'
@@ -2170,88 +2159,41 @@ function banquetPill(ctx, x, y, w, h, text, buddy, cn) {
   ctx.restore()
   if (!buddy) return
 
-  const bw = w * .82
-  const bx = x + w - 8
+  const bw = w * .867
+  const bx = x + w - w * .06
+  if (bank.buddy) blit(ctx, bank.buddy, bx - bw * .072, y - h * .233, bw * 1.119, h * 1.493)
   ctx.save()
-  const bg = ctx.createLinearGradient(0, y, 0, y + h)
-  bg.addColorStop(0, '#64100c')
-  bg.addColorStop(1, '#2a0809')
-  ctx.fillStyle = bg
-  ctx.strokeStyle = '#ffe571'
-  ctx.lineWidth = Math.max(3, h * .055)
-  ctx.beginPath()
-  ctx.roundRect(bx, y, bw, h, [0, radius, radius, 0])
-  ctx.fill()
-  ctx.stroke()
-  ctx.font = `900 ${h * .39}px ${FONT}`
+  ctx.font = `900 ${h * .38}px ${FONT}`
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
   ctx.fillStyle = '#fff'
-  ctx.fillText(`🤝${cn ? '伙伴' : 'バディ'}`, bx + bw * .5, y + h * .52)
+  ctx.fillText(cn ? '伙伴' : 'バディ', bx + bw * .72, y + h * .52)
   ctx.restore()
 }
 
-function banquetCard(ctx, song, r, cn) {
-  const s = r.w / 540
-  const radius = 16 * s
-  ctx.save()
-  ctx.shadowColor = 'rgba(0,0,0,.42)'
-  ctx.shadowBlur = 14 * s
-  ctx.shadowOffsetY = 8 * s
-  ctx.fillStyle = '#fff'
-  ctx.beginPath()
-  ctx.roundRect(r.x - 6 * s, r.y - 6 * s, r.w + 12 * s, r.h + 12 * s, radius)
-  ctx.fill()
-  ctx.restore()
+function banquetCard(ctx, song, r, cn, bank) {
+  // 素材主体 alpha 框为 (74,80)–(1094,1298)；外圈透明余量正好保留原版辉光/阴影。
+  if (bank.card) blit(ctx, bank.card, r.x - r.w * .073, r.y - r.h * .066, r.w * 1.145, r.h * 1.106)
 
-  const frame = ctx.createLinearGradient(r.x, r.y, r.x + r.w, r.y + r.h)
-  frame.addColorStop(0, '#ff64d2')
-  frame.addColorStop(.45, '#ed29a3')
-  frame.addColorStop(1, '#ff90dc')
-  ctx.fillStyle = frame
-  ctx.beginPath()
-  ctx.roundRect(r.x, r.y, r.w, r.h, radius)
-  ctx.fill()
-  ctx.strokeStyle = '#ffb9ed'
-  ctx.lineWidth = 5 * s
-  ctx.stroke()
-
-  // 宴会场固定粉色框的像素/斜切高光。
-  ctx.save()
-  ctx.globalAlpha = .42
-  ctx.fillStyle = '#fff'
-  for (let i = 0; i < 4; i++) ctx.fillRect(r.x + (34 + i * 18) * s, r.y + 12 * s, 12 * s, 8 * s)
-  ctx.beginPath()
-  ctx.moveTo(r.x + r.w - 57 * s, r.y + 11 * s)
-  ctx.lineTo(r.x + r.w - 13 * s, r.y + 11 * s)
-  ctx.lineTo(r.x + r.w - 13 * s, r.y + 54 * s)
-  ctx.closePath()
-  ctx.fill()
-  ctx.restore()
-
-  const pad = 30 * s
-  const art = { x: r.x + pad, y: r.y + 34 * s, w: r.w - pad * 2, h: r.w - pad * 2 }
+  const art = { x: r.x + r.w * .07, y: r.y + r.h * .055, w: r.w * .86, h: r.h * .68 }
   banquetCover(ctx, song, art.x, art.y, art.w, art.h)
-  ctx.strokeStyle = '#b51d78'
-  ctx.lineWidth = 3 * s
-  ctx.strokeRect(art.x, art.y, art.w, art.h)
+  // 再压一次主体框，确保曲绘不会盖住粉色内沿。
+  if (bank.card) {
+    const sx = bank.card.width * .0634, sy = bank.card.height * .0594
+    const sw = bank.card.width * .8733, sh = bank.card.height * .9042
+    ctx.drawImage(bank.card, sx, sy, sw, sh, r.x, r.y, r.w, r.h)
+  }
 
-  const nameY = art.y + art.h + 16 * s
-  const nameH = 82 * s
-  const artistH = 72 * s
-  ctx.fillStyle = '#164b91'
-  ctx.fillRect(r.x + 15 * s, nameY, r.w - 30 * s, nameH)
-  ctx.fillStyle = '#123664'
-  ctx.fillRect(r.x + 15 * s, nameY + nameH, r.w - 30 * s, artistH)
-  drawCardText(ctx, song.name || '', r.x + r.w / 2, nameY + nameH * .52, r.w - 36 * s, {
+  drawCardText(ctx, song.name || '', r.x + r.w / 2, r.y + r.h * .81, r.w * .86, {
     sizeSingle: .066, size: .058, min: .038, tracking: 0, maxLines: 2, weight: 900, color: '#ffe600', family: FONT
   })
-  drawCardText(ctx, song.artist || '', r.x + r.w / 2, nameY + nameH + artistH * .53, r.w - 42 * s, {
+  drawCardText(ctx, song.artist || '', r.x + r.w / 2, r.y + r.h * .91, r.w * .86, {
     sizeSingle: .052, size: .047, min: .032, tracking: 0, maxLines: 2, weight: 600, color: '#ffffff', family: FONT
   })
 
-  const pillW = Math.min(r.w * .58, 296 * s)
-  banquetPill(ctx, r.x, r.y - 75 * s, pillW, 67 * s, song.banquetLabel, !!song.banquetBuddy, cn)
+  const pillW = r.w * .55
+  const pillH = r.h * .103
+  banquetPill(ctx, r.x, r.y - pillH, pillW, pillH, song.banquetLabel, !!song.banquetBuddy, cn, bank)
 }
 
 function banquetRects(count) {
@@ -2260,7 +2202,11 @@ function banquetRects(count) {
     const total = n * w + (n - 1) * gap
     return Array.from({ length: n }, (_, i) => ({ x: (CANVAS_W - total) / 2 + i * (w + gap), y, w, h }))
   }
-  if (count <= 2) return makeRow(count, 310, 540, 700, 72)
+  if (count <= 2) {
+    const w = 545, h = 700, gap = 66, center = 1024
+    const total = count * w + (count - 1) * gap
+    return Array.from({ length: count }, (_, i) => ({ x: center - total / 2 + i * (w + gap), y: 310, w, h }))
+  }
   if (count === 3) return makeRow(3, 350, 430, 557, 54)
   if (count === 4) return makeRow(4, 370, 350, 454, 42)
   if (count === 5) return makeRow(5, 390, 300, 389, 34)
@@ -2274,38 +2220,9 @@ function banquetRects(count) {
 
 function renderMaiBanquet(ctx, state, imgs, ver) {
   const cn = !!(ver.cnLogo && state.useCnLogo)
+  const bank = imgs.maiBanquet || {}
   ctx.clearRect(0, 0, CANVAS_W, CANVAS_H)
-  // 顶栏：宴会场各代共用洋红色舞台，只替换左上版本 Logo。
-  const hg = ctx.createLinearGradient(0, 0, CANVAS_W, 170)
-  hg.addColorStop(0, '#d61a9d')
-  hg.addColorStop(.55, '#f027b0')
-  hg.addColorStop(1, '#cf178e')
-  ctx.fillStyle = hg
-  ctx.fillRect(0, 0, CANVAS_W, 170)
-  ctx.globalAlpha = .18
-  ctx.fillStyle = '#fff'
-  for (let x = 35; x < CANVAS_W; x += 72) for (let y = 20; y < 150; y += 44) ctx.fillRect(x, y, 14, 14)
-  ctx.globalAlpha = 1
-  ctx.fillStyle = '#2d2968'
-  ctx.beginPath()
-  ctx.arc(960, 145, 125, 0, Math.PI)
-  ctx.fill()
-  ctx.strokeStyle = 'rgba(120,215,255,.35)'
-  ctx.lineWidth = 2
-  for (let r = 65; r <= 120; r += 12) { ctx.beginPath(); ctx.arc(960, 145, r, 0, Math.PI); ctx.stroke() }
-
-  // 主舞台与两侧灯泡边框。
-  ctx.fillStyle = '#052d49'
-  ctx.fillRect(0, 170, CANVAS_W, 848)
-  ctx.fillStyle = '#0a3b5d'
-  for (let y = 185; y < 1018; y += 45) for (let x = 45 + ((y / 45) % 2) * 22; x < 1880; x += 45) {
-    ctx.beginPath(); ctx.arc(x, y, 20, 0, Math.PI * 2); ctx.fill()
-  }
-  for (const x of [7, 1885]) {
-    ctx.fillStyle = '#b92b7d'; ctx.fillRect(x, 170, 28, 848)
-    ctx.fillStyle = '#ffabd9'
-    for (let y = 190; y < 1010; y += 54) { ctx.beginPath(); ctx.arc(x + 14, y, 8, 0, Math.PI * 2); ctx.fill() }
-  }
+  if (bank.bg) blit(ctx, bank.bg, 0, 0, CANVAS_W, CANVAS_H)
 
   // 标题采用宴谱公告固定的粉白渐变与深蓝/白双层描边。
   const title = String(state.title || '')
@@ -2317,7 +2234,7 @@ function renderMaiBanquet(ctx, state, imgs, ver) {
     g.addColorStop(0, '#fff4fb'); g.addColorStop(.42, '#ff5abc'); g.addColorStop(1, '#e80082')
     return g
   }
-  drawTracked(ctx, title, 1010, 130, em, 900, FONT, 0, tg, [
+  drawTracked(ctx, title, 1080, 130, em, 900, FONT, 0, tg, [
     { color: '#fffde9', w: 28 }, { color: '#24155f', w: 15 }, { color: '#ff87cb', w: 5 }
   ], 1)
 
@@ -2332,11 +2249,9 @@ function renderMaiBanquet(ctx, state, imgs, ver) {
 
   const songs = state.songs || []
   const rects = banquetRects(songs.length)
-  songs.forEach((song, i) => rects[i] && banquetCard(ctx, song, rects[i], cn))
+  songs.forEach((song, i) => rects[i] && banquetCard(ctx, song, rects[i], cn, bank))
 
   // 国服与日服的说明文字、版权位置分别按原图处理。
-  ctx.fillStyle = '#0960c7'
-  ctx.fillRect(0, 1018, CANVAS_W, 62)
   ctx.fillStyle = '#fff'
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
@@ -2354,7 +2269,6 @@ function renderMaiBanquet(ctx, state, imgs, ver) {
     ctx.fillText(credit.replace(/\n/g, '  '), cn ? 1890 : 1880, 1010)
   }
 }
-
 
 /* ================= 主渲染 ================= */
 /** 当前版本的主背景是否已就位（舞萌素材按需加载，首帧可能先于图片到达） */
