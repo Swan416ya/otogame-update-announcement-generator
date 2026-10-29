@@ -2177,7 +2177,8 @@ function banquetCard(ctx, song, r, cn, bank) {
   // 素材主体 alpha 框为 (74,80)–(1094,1298)；外圈透明余量正好保留原版辉光/阴影。
   if (bank.card) blit(ctx, bank.card, r.x - r.w * .073, r.y - r.h * .066, r.w * 1.145, r.h * 1.106)
 
-  const art = { x: r.x + r.w * .07, y: r.y + r.h * .055, w: r.w * .86, h: r.h * .68 }
+  // 曲绘略微伸进粉色分隔带下方，再由卡框覆盖，避免透明窗口下沿露出正文背景。
+  const art = { x: r.x + r.w * .07, y: r.y + r.h * .055, w: r.w * .86, h: r.h * .705 }
   banquetCover(ctx, song, art.x, art.y, art.w, art.h)
   // 再压一次主体框，确保曲绘不会盖住粉色内沿。
   if (bank.card) {
