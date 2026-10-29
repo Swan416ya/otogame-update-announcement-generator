@@ -2186,10 +2186,10 @@ function banquetCard(ctx, song, r, cn, bank) {
     ctx.drawImage(bank.card, sx, sy, sw, sh, r.x, r.y, r.w, r.h)
   }
 
-  drawCardText(ctx, song.name || '', r.x + r.w / 2, r.y + r.h * .833, r.w, {
+  drawCardText(ctx, song.name || '', r.x + r.w / 2, r.y + r.h * .806, r.w, {
     sizeSingle: .066, size: .058, min: .038, tracking: 0, maxLines: 2, weight: 900, color: '#ffe600', family: FONT
   })
-  drawCardText(ctx, song.artist || '', r.x + r.w / 2, r.y + r.h * .923, r.w, {
+  drawCardText(ctx, song.artist || '', r.x + r.w / 2, r.y + r.h * .913, r.w, {
     sizeSingle: .052, size: .047, min: .032, tracking: 0, maxLines: 2, weight: 600, color: '#ffffff', family: FONT
   })
 
@@ -2205,9 +2205,9 @@ function banquetRects(count) {
     return Array.from({ length: n }, (_, i) => ({ x: (CANVAS_W - total) / 2 + i * (w + gap), y, w, h }))
   }
   if (count <= 2) {
-    const w = 510, h = 655, gap = 90, center = CANVAS_W / 2
+    const w = 510, h = 655, gap = 64, center = CANVAS_W / 2
     const total = count * w + (count - 1) * gap
-    return Array.from({ length: count }, (_, i) => ({ x: center - total / 2 + i * (w + gap), y: 325, w, h }))
+    return Array.from({ length: count }, (_, i) => ({ x: center - total / 2 + i * (w + gap), y: 291, w, h }))
   }
   if (count === 3) return makeRow(3, 350, 430, 557, 54)
   if (count === 4) return makeRow(4, 370, 350, 454, 42)
