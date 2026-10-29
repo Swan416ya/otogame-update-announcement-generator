@@ -63,7 +63,7 @@ import bgBanquetUrl from '@/assets/update-gen/mai/bg-banquet-v2.png'
 import cardBanquetUrl from '@/assets/update-gen/mai/card-banquet-v2.png'
 import labelBanquetUrl from '@/assets/update-gen/mai/label-banquet-v2.png'
 import labelBanquetBuddyUrl from '@/assets/update-gen/mai/label-banquet-buddy-v2.png'
-import textureBanquetTitleUrl from '@/assets/update-gen/mai/texture-banquet-title-v1.png'
+import textureBanquetTitleUrl from '@/assets/update-gen/mai/texture-banquet-title-v2.svg'
 import headerMagicalUrl from '@/assets/update-gen/mai/header-magical.png'
 import bgCircleplusUrl from '@/assets/update-gen/mai/bg-circleplus.png'
 import headerCircleplusUrl from '@/assets/update-gen/mai/header-circleplus.png'
@@ -2231,21 +2231,21 @@ function renderMaiBanquet(ctx, state, imgs, ver) {
   let em = 92
   ctx.font = `900 ${em}px ${FONT}`
   while (em > 50 && ctx.measureText(title).width > 1050) { em -= 2; ctx.font = `900 ${em}px ${FONT}` }
-  let titleFill = '#f223a9'
+  let titleFill = '#E91F95'
   if (bank.titleTexture) {
     const layer = document.createElement('canvas')
     layer.width = CANVAS_W
     layer.height = 170
-    layer.getContext('2d').drawImage(
-      bank.titleTexture,
-      0, bank.titleTexture.height * .11, bank.titleTexture.width, bank.titleTexture.height * .78,
-      0, 0, CANVAS_W, 170
-    )
+    const layerCtx = layer.getContext('2d')
+    const tileWidth = 340
+    for (let x = 0; x < CANVAS_W; x += tileWidth) {
+      layerCtx.drawImage(bank.titleTexture, x, 0, tileWidth, 170)
+    }
     titleFill = ctx.createPattern(layer, 'no-repeat') || titleFill
   }
-  drawTracked(ctx, title, 1070, 120 + 5, em, 900, FONT, 0,
+  drawTracked(ctx, title, CANVAS_W / 2, 120 + 5, em, 900, FONT, 0,
     'rgba(30, 12, 67, .62)', [{ color: 'rgba(30, 12, 67, .62)', w: 32 }], 1)
-  drawTracked(ctx, title, 1070, 120, em, 900, FONT, 0, titleFill, [
+  drawTracked(ctx, title, CANVAS_W / 2, 120, em, 900, FONT, 0, titleFill, [
     { color: '#fffbe7', w: 28 }, { color: '#24155f', w: 18 }, { color: '#ffffff', w: 7 }, { color: '#f14aaf', w: 2.5 }
   ], 1)
 
