@@ -204,23 +204,29 @@ const CANVAS_H = 1080
 const SONGS_AREA = { x: 80, y: 230, w: 1760, h: 760 }
 const CARD_ASPECT = 553 / 746
 
-/** MODERN 卡片内部排版（相对 553×746 卡片，来自 PSD 标注） */
+/** MODERN 卡片内部排版（相对 553×746 卡片，来自 PSD 标注）。
+ *  文字宽度上限取卡片底图 card-bg.webp 上那条白色分隔线的实测位置（x 0.067..0.937，
+ *  可用宽度 0.87w），放不下的曲名先把字顶到线再缩小；原来按 0.78w / 0.70w 收得太窄，
+ *  左右还剩一大截就开始缩，显得字小空大。pad = (1 - 0.87) / 2。 */
 const CARD = {
   art: { x: 0.116, y: 0.074, w: 0.772, h: 0.574 },
-  name: { centerline: 0.779, size: 0.0633, sizeSingle: 0.0723, pad: 0.11, weight: 900, lineHeight: 1.3 },
-  artist: { centerline: 0.906, size: 0.047, sizeSingle: 0.0542, pad: 0.15, weight: 600, maxLines: 2, lineHeight: 1.3 }
+  name: { centerline: 0.779, size: 0.0633, sizeSingle: 0.0723, pad: 0.065, weight: 900, lineHeight: 1.3 },
+  artist: { centerline: 0.906, size: 0.047, sizeSingle: 0.0542, pad: 0.065, weight: 600, maxLines: 2, lineHeight: 1.3 }
 }
 
 /** ULTiMA 卡：底图从官方 xversex 混排公告图抠出（ULTIMA 条与红线已 baked，经预加载后由 imgs 传入）。
- *  曲绘孔跟随专用底图，曲名/曲师则与普通卡共用同一组中心线，避免混排时上下错位。 */
+ *  曲绘孔跟随专用底图，曲名/曲师则与普通卡共用同一组中心线，避免混排时上下错位。
+ *  白带满宽，文字上限与普通卡一致用 0.87w，避免白带里左右空太多。 */
 const CARD_ULTIMA = {
   art: { ...CARD.art },
-  name: { centerline: 0.779, size: 0.0633, sizeSingle: 0.0723, pad: 0.11, weight: 900, lineHeight: 1.3, color: '#1a1a1a' },
-  artist: { centerline: 0.906, size: 0.047, sizeSingle: 0.0542, pad: 0.15, weight: 600, maxLines: 2, lineHeight: 1.3, color: '#2a2a2a' }
+  name: { centerline: 0.779, size: 0.0633, sizeSingle: 0.0723, pad: 0.065, weight: 900, lineHeight: 1.3, color: '#1a1a1a' },
+  artist: { centerline: 0.906, size: 0.047, sizeSingle: 0.0542, pad: 0.065, weight: 600, maxLines: 2, lineHeight: 1.3, color: '#2a2a2a' }
 }
 
 /** LEGACY 常量（自 new.png / newplus.png 测量；横幅整条与卡片底图均为官方图抠出/修补的资产，
- *  斜纹、绶带、蓝线、白框、分隔线全部 baked） */
+ *  斜纹、绶带、蓝线、白框、分隔线全部 baked）。
+ *  文字宽度上限取底图 card-bg-legacy.png 上分隔线的实测位置（x 0.044..0.952，可用 0.905w），
+ *  pad = (1 - 0.905) / 2，和 MODERN 卡同理：顶到线再缩。 */
 const LEGACY = {
   titleColor: '#FFFF11',
   cardRatio: 0.917,
@@ -228,8 +234,8 @@ const LEGACY = {
   singleHeights: [548, 548, 541, 428],
   card: {
     art: { x: 0.1048, y: 0.0407, w: 0.7863, h: 0.7212 },
-    name: { centerline: 0.826, size: 0.09, pad: 0.08, weight: 900, maxLines: 1, lineHeight: 1.25 },
-    artist: { centerline: 0.941, size: 0.052, pad: 0.06, weight: 600, maxLines: 2, lineHeight: 1.3 }
+    name: { centerline: 0.826, size: 0.09, pad: 0.048, weight: 900, maxLines: 1, lineHeight: 1.25 },
+    artist: { centerline: 0.941, size: 0.052, pad: 0.048, weight: 600, maxLines: 2, lineHeight: 1.3 }
   }
 }
 
@@ -237,8 +243,8 @@ const LEGACY = {
  *  已横向适配 LEGACY 卡框比例 0.917）；白带文字为黑色，署名两行时换用小字号（size2）防溢出白带 */
 const CARD_ULTIMA_LEGACY = {
   art: { x: 0.1196, y: 0.0526, w: 0.7609, h: 0.6384 },
-  name: { centerline: 0.848, size: 0.066, pad: 0.08, weight: 900, maxLines: 1, lineHeight: 1.25, color: '#1a1a1a' },
-  artist: { centerline: 0.951, size: 0.047, size2: 0.042, pad: 0.06, weight: 600, maxLines: 2, lineHeight: 1.3, color: '#2a2a2a' }
+  name: { centerline: 0.848, size: 0.066, pad: 0.048, weight: 900, maxLines: 1, lineHeight: 1.25, color: '#1a1a1a' },
+  artist: { centerline: 0.951, size: 0.047, size2: 0.042, pad: 0.048, weight: 600, maxLines: 2, lineHeight: 1.3, color: '#2a2a2a' }
 }
 
 /* ===================== MODERN 渲染 ===================== */
@@ -656,8 +662,9 @@ function renderAmazon(ctx, state, imgs, ver) {
 const CRYSTAL_CARD = {
   ratio: 0.922,
   art: { x: 0.105, y: 0.043, w: 0.79, h: 0.724 },
-  name: { centerline: 0.825, size: 0.068, pad: 0.065, weight: 700, maxLines: 2, lineHeight: 1.02, color: '#090909' },
-  artist: { centerline: 0.935, size: 0.045, pad: 0.055, weight: 500, maxLines: 2, lineHeight: 1.1, color: '#111111' }
+  // 卡内分隔线画在 x 0.05..0.95，文字上限跟着取 0.90w（原来 0.87w / 0.89w）
+  name: { centerline: 0.825, size: 0.068, pad: 0.05, weight: 700, maxLines: 2, lineHeight: 1.02, color: '#090909' },
+  artist: { centerline: 0.935, size: 0.045, pad: 0.05, weight: 500, maxLines: 2, lineHeight: 1.1, color: '#111111' }
 }
 
 function crystalLayout(n, isPlus) {
@@ -1034,7 +1041,7 @@ function drawParadiseCard(ctx, song, x, y, w, h, lost) {
   const color = lost ? '#075080' : '#ffffff'
   const nameCfg = { weight: 700, lineHeight: 1.02, color }
   const artistCfg = { weight: 500, lineHeight: 1.05, color }
-  const nameSize = fitFontSize(ctx, song.name, w * 0.88, w * 0.064, 700)
+  const nameSize = fitFontSize(ctx, song.name, w * 0.905, w * 0.064, 700)
   drawCenteredText(ctx, song.name, x + w / 2, y + h * 0.825, nameSize, nameCfg, 2)
   ctx.strokeStyle = color
   ctx.lineWidth = Math.max(2, w * 0.004)
@@ -1042,7 +1049,7 @@ function drawParadiseCard(ctx, song, x, y, w, h, lost) {
   ctx.moveTo(x + w * 0.045, y + h * 0.875)
   ctx.lineTo(x + w * 0.955, y + h * 0.875)
   ctx.stroke()
-  const artistSize = fitFontSize(ctx, song.artist, w * 0.88, w * 0.052, 500)
+  const artistSize = fitFontSize(ctx, song.artist, w * 0.905, w * 0.052, 500)
   drawCenteredText(ctx, song.artist, x + w / 2, y + h * 0.945, artistSize, artistCfg, 2)
 }
 
