@@ -331,7 +331,14 @@ const maiPalette = computed(() => {
   return mod.MAI_PALETTES[mod.MAI_VERSIONS[version.value]?.family || 'festival'] || []
 })
 const OLD_CHUNI_VERSIONS = new Set(['amazon', 'amazon-plus', 'crystal', 'crystal-plus', 'paradise', 'paradise-lost'])
-const songLimit = computed(() => game.value === 'chuni' && OLD_CHUNI_VERSIONS.has(version.value) ? 9 : 10)
+// 中二旧版卡一行最多 9 张；舞萌 FESTiVAL 起的整背景版式官方最多 7 列×2 行 = 14 张；
+// 宴会场版式一张图仍固定 10 张
+const songLimit = computed(() => {
+  if (game.value === 'chuni') return OLD_CHUNI_VERSIONS.has(version.value) ? 9 : 10
+  if (banquetMode.value && supportsMaiBanquet.value) return 10
+  const limit = maiModule.value?.maiSongLimit?.(version.value)
+  return limit || 10
+})
 const renderSongs = computed(() => songs.slice(0, songLimit.value).map((song) => globalUltima.value ? { ...song, ultima: true } : song))
 
 /**

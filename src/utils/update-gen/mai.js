@@ -395,6 +395,15 @@ const FAMILIES = {
         top: 206,          // 双行时行1 顶（无徽章，整体上移占满）
         gap: 26,
         cardH: 412, cardW: 316.3, rowPitch: 438
+      },
+      // 11～14 首（官方 CiRCLE 起的大批量公告图最多 7 列×2 行）：
+      // 卡片尽量放大、行内间隙压窄，整块在标题下沿与右下版权行之间垂直居中
+      dense: {
+        contentW: 1900,    // 左右各留 10px 安全边
+        gapRatio: 0.03,    // 行内卡间隙按卡宽的 3% 走，跟着卡片一起缩
+        rowGap: 28,        // 两行之间的竖直间隙（官方图行距比列距宽）
+        top: 210,          // 可用竖直区间：标题下沿
+        bottom: 1020       // 可用竖直区间：版权行上沿
       }
     },
     // 徽章素材已把 PSD 的 4px 白环烘进图（611×122 = 603×114 + 环），
@@ -480,7 +489,7 @@ const MAI_TITLE_PINK = {
 /** 版本 → 家族/素材配置（背景先用占位渐变，待用户供图）
  *  title 覆盖项来自各时代官方「楽曲追加」图实测；band 为抠取的横幅平铺图 key。 */
 export const MAI_VERSIONS = {
-  deradx:       { label: 'maimaiでらっくす / PLUS', family: 'earlyDx', logo: logoDx, plusLogo: logoDxplus, earlyBg: 'dx', tint: ['#bfe8ff', '#8ec9ff'] },
+  deradx:       { label: 'maimaiでらっくす DELUXE / PLUS', family: 'earlyDx', logo: logoDx, plusLogo: logoDxplus, earlyBg: 'dx', tint: ['#bfe8ff', '#8ec9ff'] },
   splash:       { label: 'maimaiでらっくす Splash', family: 'splash', logo: logoSplash, earlyBg: 'splash', tint: ['#7de2c4', '#ffe100'] },
   splashplus:   { label: 'maimaiでらっくす Splash PLUS', family: 'splashplus', logo: logoSplashplus, earlyBg: 'splashplus', tint: ['#bfe8ff', '#8fd4ff'] },
   universe:     { label: 'maimaiでらっくす UNiVERSE / PLUS', family: 'universe', bg: 'universe', logo: logoUniverse, tint: ['#ffb3d9', '#8ec9ff'] },
@@ -546,6 +555,13 @@ export const MAI_VERSIONS = {
 const MAI_BANQUET_VERSIONS = new Set(['buddies', 'buddiesplus', 'prism', 'prismplus', 'circle', 'circleplus', 'magical'])
 export function supportsMaiBanquet(version) {
   return MAI_BANQUET_VERSIONS.has(version)
+}
+
+/** 单张公告图的歌曲上限：FESTiVAL 起的整背景家族官方版式最多 7 列×2 行 = 14 首，更早的版面仍为 10 首 */
+const MAI_DENSE_FAMILIES = new Set(['festival', 'magical', 'circle', 'circleplus'])
+export function maiSongLimit(version) {
+  const ver = MAI_VERSIONS[version]
+  return ver && MAI_DENSE_FAMILIES.has(ver.family) ? 14 : 10
 }
 
 /* ================= 主题级素材清单（按需加载） =================
@@ -1956,6 +1972,32 @@ function magicalRects(fam, n, offsetY = 0) {
   }
   const topCount = Math.ceil(n / 2)
   const rows = [topCount, n - topCount]
+  if (n > 10) {
+    // 11～14 首：最多 7 列×2 行。卡宽同时受「可用宽度」和「可用高度」约束（取小者），
+    // 行内间隙按卡宽同比压窄，整块在标题下沿与右下版权行之间垂直居中，保证每张卡都在画面内。
+    const d = g.dense
+    const cols = topCount
+    const ratio = g.rows.cardH / g.rows.cardW
+    let w = g.rows.cardW
+    const needW = cols * w + (cols - 1) * w * d.gapRatio
+    if (needW > d.contentW) w *= d.contentW / needW
+    const maxByH = (d.bottom - d.top - d.rowGap) / (2 * ratio)
+    if (w > maxByH) w = maxByH
+    const h = w * ratio
+    const gap = w * d.gapRatio
+    const blockH = 2 * h + d.rowGap
+    const top = d.top + Math.max(0, (d.bottom - d.top - blockH) / 2) + offsetY
+    rows.forEach((count, ri) => {
+      const y = top + ri * (h + d.rowGap)
+      const rowW = count * w + (count - 1) * gap
+      let x = (CANVAS_W - rowW) / 2
+      for (let i = 0; i < count; i++) {
+        out.push({ x, y, w, h })
+        x += w + gap
+      }
+    })
+    return out
+  }
   rows.forEach((count, ri) => {
     const y = (ri === 0 ? g.rows.top : g.rows.top + g.rows.rowPitch) + offsetY
     const rowW = count * g.rows.cardW + (count - 1) * (g.rows.cardW * 0.13)
